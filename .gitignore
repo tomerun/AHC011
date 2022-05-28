@@ -1,0 +1,9 @@
+*.dwarf
+*.zip
+*.out
+*.o
+main
+log.txt
+result/
+tools/
+out/
