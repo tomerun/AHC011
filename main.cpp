@@ -248,9 +248,9 @@ struct Result {
   int score() const {
     int s = N * N - 1;
     if (tree_size == s) {
-      return 500000 * 2 - (500000 * moves.size() + T / 2) / T;
+      return 5000ll * 2 - (5000ll * moves.size() + T / 2) / T;
     } else {
-      return (500000 * tree_size + s / 2) / s;
+      return (5000ll * tree_size + s / 2) / s;
     }
   }
 };
@@ -632,17 +632,93 @@ struct TreePlacer {
   // }
 };
 
+struct State {
+  vvi tiles;
+  int evaluation;
+  int er, ec;
+  int prev_move;
+};
+
+struct SlidingBlockPuzzle {
+  vvi tiles;
+  int sr, sc;
+  SlidingBlockPuzzle(vvi tiles_, int sr_, int sc_) : tiles(tiles_), sr(sr_), sc(sc_) {}
+
+  vi solve() {
+    int initial_eval = 0;
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+        initial_eval += abs((tiles[i][j] >> 8) - i) + abs((tiles[i][j] & 0xFF) - j);
+      }
+    }
+    if (initial_eval == 0) return vi();  // tenho
+    State initial_state = {tiles, initial_eval, sr, sc, -1};
+    vector<State> cur_states = {initial_state};
+
+  }
+}
+
 struct Solver {
   array<array<int, 12>, 12> tiles;
-  // array<array<int, 12>, 12> target_tiles;
   Solver() {
   }
 
   Result solve() {
     TreePlacer tree_placer;
     vvi target_tiles = tree_placer.find();
-    print_tiles(target_tiles, true);
+    if (target_tiles.empty()) {
+      exit(1);
+    }
+
+    // remove sentinel
+    target_tiles.pop_back();
+    target_tiles.erase(target_tiles.begin());
+    for (auto& row : target_tiles) {
+      row.pop_back();
+      row.erase(row.begin());
+    }
+
+    // create matching from original tiles
+    vector<vector<pair<int, int>>> orig_tile_pos(16);
+    vector<vector<pair<int, int>>> target_tile_pos(16);
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+        orig_tile_pos[orig_tiles[i][j]].push_back({i, j});
+        target_tile_pos[target_tiles[i][j]].push_back({i, j});
+      }
+    }
+    for (int i = 1; i <= 15; ++i) {
+      vector<pair<int, int>>& orig_pos = orig_tile_pos[i];
+      vector<pair<int, int>>& target_pos = target_tile_pos[i];
+      if (orig_pos.size() <= 1) continue;
+      for (int turn = 0; turn < orig_pos.size() * 100; ++turn) {
+        int pos0 = rnd.nextUInt(orig_pos.size());
+        int pos1 = rnd.nextUInt(orig_pos.size() - 1);
+        if (pos0 <= pos1) pos1++;
+        int cur_dist = abs(orig_pos[pos0].first - target_pos[pos0].first) + abs(orig_pos[pos0].second - target_pos[pos0].second);
+        cur_dist += abs(orig_pos[pos1].first - target_pos[pos1].first) + abs(orig_pos[pos1].second - target_pos[pos1].second);
+        int new_dist = abs(orig_pos[pos0].first - target_pos[pos1].first) + abs(orig_pos[pos0].second - target_pos[pos1].second);
+        new_dist += abs(orig_pos[pos1].first - target_pos[pos0].first) + abs(orig_pos[pos1].second - target_pos[pos0].second);
+        if (new_dist <= cur_dist) {
+          swap(target_pos[pos0], target_pos[pos1]);
+        }
+      }
+    }
+    vvi tile_number(N, vi(N, 0));
+    for (int i = 0; i <= 15; ++i) {
+      debug("tile:%d\n", i);
+      for (int j = 0; j < orig_tile_pos[i].size(); ++j) {
+        auto orig_p = orig_tile_pos[i][j];
+        auto target_p = target_tile_pos[i][j];
+        debug("(%d %d) -> (%d %d)\n", orig_p.first, orig_p.second, target_p.first, target_p.second);
+        tile_number[orig_p.first][orig_p.second] = (target_p.first << 8) | target_p.second;
+      }
+    }
+
     Result res;
+    SlidingBlockPuzzle puzzle(tile_number, orig_tile_pos[0][0].first, orig_tile_pos[0][0].second);
+    res.moves = puzzle.solve();
+    res.tree_size = N * N - 1;
     return res;
   }
 
