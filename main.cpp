@@ -657,6 +657,359 @@ array<array<uint64_t, 10>, 10> cell_hash;
 constexpr int BEAM_SIZE = 100;
 array<array<History, BEAM_SIZE>, 2000> beam_history;
 
+struct PuzzleSolver {
+  vvi tiles;
+  vvi target;
+  vi ans;
+  vector<vector<bool>> protect;
+  int er;
+  int ec;
+  vvi bfs_from;
+  vvi bfs_cnt;
+  int bfs_counter;
+
+  PuzzleSolver(vvi& initial_tiles_, vvi& target_)
+   : tiles(initial_tiles_), target(target_), protect(N, vector<bool>(N, false)), bfs_counter(0) {
+    bfs_from.assign(N, vi(N, -1));
+    bfs_cnt.assign(N, vi(N, 0));
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+        if (tiles[i][j] == EMPTY) {
+          er = i;
+          ec = j;
+        }
+      }
+    }
+  }
+
+  void convey(const int level, const int r, const int c, const int t) {
+    debugln();
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+        debug("%x", tiles[i][j]);
+      }
+      debugln();
+    }    
+    int pos0 = 0;
+    int pos1 = 0;
+    int dist0 = INF;
+    int dist1 = INF;
+    for (int i = level; i < N; ++i) {
+      for (int j = level; j < N; ++j) {
+        if (tiles[i][j] != t) continue;
+        if (protect[i][j]) continue;
+        int dist = abs(r - i) + abs(c - j);
+        if (dist < dist0) {
+          dist1 = dist0;
+          pos1 = pos0;
+          dist0 = dist;
+          pos0 = (i << 8) | j;
+        } else if (dist < dist1) {
+          dist1 = dist;
+          pos1 = (i << 8) | j;
+        }
+      }
+    }
+    assert(dist0 != INF);
+    // TODO: select second pos
+    // if (dist1 != INF && (rnd.nextUInt() & 1)) {
+    //   pos0 = pos1;
+    // }
+    int tr = pos0 >> 8;
+    int tc = pos0 & 0xFF;
+    debugln();
+    debug("convey r:%d c:%d tr:%d tc:%d\n", r, c, tr, tc);
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+        debug("%d", (int)protect[i][j]);
+      }
+      debugln();
+    }
+    while (tr != r || tc != c) {
+      protect[tr][tc] = true;
+      // TODO: randomize order
+      for (int dir = 0; dir < 4; ++dir) {
+        if ((r - tr) * DR[dir] + (c - tc) * DC[dir] > 0 && !protect[tr + DR[dir]][tc + DC[dir]]) {
+          move_to(tr + DR[dir], tc + DC[dir]);
+          protect[tr][tc] = false;
+          step(dir ^ 2);
+          tr += DR[dir];
+          tc += DC[dir];
+          break;
+        }
+      }
+      assert(!protect[tr][tc]);
+    }
+    assert(tiles[r][c] == t);
+  }
+
+  void move_to(const int r, const int c) {
+    debugln();
+    debug("move_to r:%d c:%d er:%d ec:%d\n", r, c, er, ec);
+    assert(!protect[r][c]);
+    static vi path;
+    path.clear();
+    if (move_to_dfs(r, c, er, ec, path)) {
+      for (int dir : path) {
+        step(dir);
+      }
+      assert(er == r);
+      assert(ec == c);
+      return;
+    }
+    assert(path.empty());
+    debugStr("move_to_bfs\n");
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+        debug("%d", (int)protect[i][j]);
+      }
+      debugln();
+    }
+    static vi bfs_que;
+    bfs_que.clear();
+    bfs_que.push_back((er << 8) | ec);
+    bfs_counter++;
+    bfs_cnt[er][ec] = bfs_counter;
+    int qi = 0;
+    while (true) {
+      int cr = bfs_que[qi] >> 8;
+      int cc = bfs_que[qi] & 0xFF;
+      debug("cr:%d cc:%d\n", cr, cc);
+      if (cr == r && cc == c) break;
+      for (int i = 0; i < 4; ++i) {
+        int nr = cr + DR[i];
+        int nc = cc + DC[i];
+        if (!in_grid(nr) || !in_grid(nc)) continue;
+        if (protect[nr][nc]) continue;
+        if (bfs_cnt[nr][nc] == bfs_counter) continue;
+        bfs_from[nr][nc] = i;
+        bfs_cnt[nr][nc] = bfs_counter;
+        bfs_que.push_back((nr << 8) | nc);
+      }
+      qi++;
+    }
+    int cr = r;
+    int cc = c;
+    while (cr != er || cc != ec) {
+      debug("back cr:%d cc:%d\n", cr, cc);
+      path.push_back(bfs_from[cr][cc]);
+      cr -= DR[path.back()];
+      cc -= DC[path.back()];
+    }
+    for (auto itr = path.rbegin(); itr != path.rend(); ++itr) {
+      step(*itr);
+    }
+    assert(er == r);
+    assert(ec == c);
+  }
+
+  bool move_to_dfs(const int tr, const int tc, const int cr, const int cc, vi& path) {
+    // debug("move_to_dfs tr:%d tc:%d cr:%d cc:%d\n", tr, tc, cr, cc);
+    if (tr == cr && tc == cc) return true;
+    int order = rnd.nextUInt() & 1;
+    for (int i = 0; i < 2; ++i) {
+      if ((i + order) & 1) {
+        if (tr != cr) {
+          int dir = tr < cr ? UP : DOWN;
+          int nr = cr + DR[dir];
+          if (!protect[nr][cc]) {
+            path.push_back(dir);
+            if (move_to_dfs(tr, tc, nr, cc, path)) {
+              return true;
+            }
+            path.pop_back();
+          }
+        }
+      } else {
+        if (tc != cc) {
+          int dir = tc < cc ? LEFT : RIGHT;
+          int nc = cc + DC[dir];
+          if (!protect[cr][nc]) {
+            path.push_back(dir);
+            if (move_to_dfs(tr, tc, cr, nc, path)) {
+              return true;
+            }
+            path.pop_back();
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  void step(int dir) {
+    ans.push_back(dir);
+    int nr = er + DR[dir];
+    int nc = ec + DC[dir];
+    // assert(!protect[nr][nc]);
+    swap(tiles[er][ec], tiles[nr][nc]);
+    er = nr;
+    ec = nc;
+  }
+
+  void solve_cw(int level) {
+    for (int i = N - 1; i >= level + 2; --i) {
+      convey(level, i, level, target[i][level]);
+      protect[i][level] = true;
+    }
+    if (tiles[level + 1][level] == target[level][level] && tiles[level][level] == target[level][level]) {
+      // ok
+      protect[level + 1][level] = true;
+      protect[level][level] = true;
+    } else {
+      convey(level, level + 1, level, target[level][level]);
+      protect[level + 1][level] = true;
+      if (er == level && ec == level) {
+        step(RIGHT);
+      }
+      if (tiles[level][level] == target[level + 1][level]) {
+        move_to(level + 1, level + 1);
+        step(LEFT);
+        step(DOWN);
+        step(RIGHT);
+        step(RIGHT);
+        step(UP);
+        step(UP);
+        step(LEFT);
+        step(DOWN);
+        step(DOWN);
+        step(LEFT);
+        step(UP);
+        step(UP);
+        step(RIGHT);
+      } else {
+        convey(level, level + 1, level + 1, target[level + 1][level]);
+        protect[level + 1][level + 1] = true;
+        move_to(level, level);
+        protect[level + 1][level + 1] = false;
+        step(DOWN);
+        step(RIGHT);
+      }
+      protect[level][level] = true;
+    }
+
+    for (int i = level + 1; i < N - 2; ++i) {
+      convey(level, level, i, target[level][i]);
+      protect[level][i] = true;
+    }
+    if (tiles[level][N - 2] == target[level][N - 2] && tiles[level][N - 1] == target[level][N - 1]) {
+      // ok
+      protect[level][N - 2] = true;
+      protect[level][N - 1] = true;
+    } else {
+      convey(level, level, N - 2, target[level][N - 1]);
+      protect[level][N - 2] = true;
+      if (er == level && ec == N - 1) {
+        step(DOWN);
+      }
+      if (tiles[level][N - 1] == target[level][N - 2]) {
+        move_to(level + 1, N - 2);
+        step(UP);
+        step(LEFT);
+        step(DOWN);
+        step(DOWN);
+        step(RIGHT);
+        step(RIGHT);
+        step(UP);
+        step(LEFT);
+        step(LEFT);
+        step(UP);
+        step(RIGHT);
+        step(RIGHT);
+        step(DOWN);
+      } else {
+        convey(level, level + 1, N - 2, target[level][N - 2]);
+        protect[level + 1][N - 2] = true;
+        move_to(level, N - 1);
+        protect[level + 1][N - 2] = false;
+        step(LEFT);
+        step(DOWN);
+      }
+      protect[level][N - 1] = true;
+    }
+    debugStr("solve_cw end\n");
+  }
+
+  bool solve_whole(int size) {
+    uint64_t target_state = 0ull;
+    uint64_t initial_state = 0ull;
+    int base_coord = N - size;
+    for (int i = N - 1; i >= N - 3; --i) {
+      for (int j = N - 1; j >= N - 3; --j) {
+        target_state <<= 4;
+        target_state |= target[i][j];
+        initial_state <<= 4;
+        initial_state |= tiles[i][j];
+      }
+    }
+    unordered_map<uint64_t, int8_t> visited_states;
+    visited_states[initial_state] = -1;
+    vector<uint64_t> cur_states;
+    const uint64_t mask = (1ull << (4 * size * size)) - 1;
+    cur_states.push_back(initial_state | ((uint64_t)er << 40) | ((uint64_t)ec << 36));
+    debugStr("solve_whole\n");
+    for (int turn = 0; !cur_states.empty(); ++turn) {
+      debug("turn:%d cur_states.size:%lu visited_states.size:%lu\n", turn, cur_states.size(), visited_states.size());
+      vector<uint64_t> next_states;
+      for (uint64_t cur_state : cur_states) {
+        int cr = (int)(cur_state >> 40);
+        int cc = (int)(cur_state >> 36) & 0xF;
+        // debug("cr:%d cc:%d\n", cr, cc);
+        cur_state &= mask;
+        int cur_bit_pos = ((cr - base_coord) * size + (cc - base_coord)) * 4;
+        for (int dir = 0; dir < 4; ++dir) {
+          int nr = cr + DR[dir];
+          int nc = cc + DC[dir];
+          if (nr < base_coord || N <= nr || nc < base_coord || N <= nc) continue;
+          int next_bit_pos = ((nr - base_coord) * size + (nc - base_coord)) * 4;
+          uint64_t tile = (cur_state >> next_bit_pos) & 0xF;
+          uint64_t next_state = (cur_state ^ (tile << next_bit_pos)) | (tile << cur_bit_pos);
+          if (visited_states.count(next_state) == 0) {
+            visited_states[next_state] = dir;
+            if (next_state == target_state) {
+              goto FOUND;
+            }
+            next_states.push_back(next_state | ((uint64_t)nr << 40) | ((uint64_t)nc << 36));
+          }
+        }
+      }
+      swap(cur_states, next_states);
+    }
+    return false;
+FOUND:
+    vi path;
+    uint64_t s = target_state;
+    while (s != initial_state) {
+      for (int i = 0; i < size * size; ++i) {
+        if (((s >> (i * 4)) & 0xF) == 0) {
+          int r = i / size;
+          int c = i % size;
+          int dir = visited_states[s];
+          path.push_back(dir);
+          int nr = r - DR[dir];
+          int nc = c - DC[dir];
+          uint64_t tile = (s >> ((nr * size + nc) * 4)) & 0xF;
+          s ^= tile << ((nr * size + nc) * 4);
+          s |= tile << ((r * size + c) * 4);
+          break;
+        }
+      }
+    }
+    for (auto itr = path.rbegin(); itr != path.rend(); ++itr) {
+      ans.push_back(*itr);
+    }
+    return true;
+  }
+
+  vi solve(bool& success) {
+    for (int level = 0; level < N - 3; ++level) {
+      solve_cw(level);
+    }
+    success = solve_whole(3);
+    return ans;
+  }
+};
+
 struct SlidingBlockPuzzle {
   vvi tiles;
   SlidingBlockPuzzle(vvi tiles_) : tiles(tiles_) {}
@@ -931,10 +1284,33 @@ struct SlidingBlockPuzzle {
 };
 
 struct Solver {
-  array<array<int, 12>, 12> tiles;
   Solver() {}
 
   Result solve() {
+    vi best_ans(T + 1, 0);
+    int turn = 0;
+    uint64_t worst_time = 0;
+    uint64_t before_time = get_elapsed_msec();
+    while (true) {
+      if (get_elapsed_msec() + worst_time > TL) {
+        debug("total turn:%d\n", turn);
+        break;
+      }
+      bool success = false;
+      vi ans = solve_one(success);
+      if (success && ans.size() < best_ans.size()) {
+        swap(ans, best_ans);
+        debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
+      }
+      turn++;
+      uint64_t after_time = get_elapsed_msec();
+      worst_time = max(worst_time, after_time - before_time);
+      before_time = after_time;
+    }
+    return {best_ans, N * N - 1};
+  }
+
+  vi solve_one(bool& success) {
     TreePlacer tree_placer;
     vvi target_tiles = tree_placer.find();
     if (target_tiles.empty()) {
@@ -950,167 +1326,103 @@ struct Solver {
     }
     print_tiles(target_tiles, false);
 
+    vvi tiles;
+    for (int i = 0; i < N; ++i) {
+      tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
+    }
+    PuzzleSolver puzzle_solver(tiles, target_tiles);
+    return puzzle_solver.solve(success);
+
     // create matching from original tiles
-    vector<vector<pair<int, int>>> orig_tile_pos(16);
-    vector<vector<pair<int, int>>> target_tile_pos(16);
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        orig_tile_pos[orig_tiles[i][j]].push_back({i, j});
-        target_tile_pos[target_tiles[i][j]].push_back({i, j});
-      }
-    }
-    for (int i = 1; i <= 15; ++i) {
-      vector<pair<int, int>>& orig_pos = orig_tile_pos[i];
-      vector<pair<int, int>>& target_pos = target_tile_pos[i];
-      if (orig_pos.size() <= 1) continue;
-      for (int turn = 0; turn < orig_pos.size() * 100; ++turn) {
-        int pos0 = rnd.nextUInt(orig_pos.size());
-        int pos1 = rnd.nextUInt(orig_pos.size() - 1);
-        if (pos0 <= pos1) pos1++;
-        int cur_dist = abs(orig_pos[pos0].first - target_pos[pos0].first) + abs(orig_pos[pos0].second - target_pos[pos0].second);
-        cur_dist += abs(orig_pos[pos1].first - target_pos[pos1].first) + abs(orig_pos[pos1].second - target_pos[pos1].second);
-        int new_dist = abs(orig_pos[pos0].first - target_pos[pos1].first) + abs(orig_pos[pos0].second - target_pos[pos1].second);
-        new_dist += abs(orig_pos[pos1].first - target_pos[pos0].first) + abs(orig_pos[pos1].second - target_pos[pos0].second);
-        if (new_dist <= cur_dist) {
-          swap(target_pos[pos0], target_pos[pos1]);
-        }
-      }
-    }
+    // vector<vector<pair<int, int>>> orig_tile_pos(16);
+    // vector<vector<pair<int, int>>> target_tile_pos(16);
+    // for (int i = 0; i < N; ++i) {
+    //   for (int j = 0; j < N; ++j) {
+    //     orig_tile_pos[orig_tiles[i][j]].push_back({i, j});
+    //     target_tile_pos[target_tiles[i][j]].push_back({i, j});
+    //   }
+    // }
+    // for (int i = 1; i <= 15; ++i) {
+    //   vector<pair<int, int>>& orig_pos = orig_tile_pos[i];
+    //   vector<pair<int, int>>& target_pos = target_tile_pos[i];
+    //   if (orig_pos.size() <= 1) continue;
+    //   for (int turn = 0; turn < orig_pos.size() * 100; ++turn) {
+    //     int pos0 = rnd.nextUInt(orig_pos.size());
+    //     int pos1 = rnd.nextUInt(orig_pos.size() - 1);
+    //     if (pos0 <= pos1) pos1++;
+    //     int cur_dist = abs(orig_pos[pos0].first - target_pos[pos0].first) + abs(orig_pos[pos0].second - target_pos[pos0].second);
+    //     cur_dist += abs(orig_pos[pos1].first - target_pos[pos1].first) + abs(orig_pos[pos1].second - target_pos[pos1].second);
+    //     int new_dist = abs(orig_pos[pos0].first - target_pos[pos1].first) + abs(orig_pos[pos0].second - target_pos[pos1].second);
+    //     new_dist += abs(orig_pos[pos1].first - target_pos[pos0].first) + abs(orig_pos[pos1].second - target_pos[pos0].second);
+    //     if (new_dist <= cur_dist) {
+    //       swap(target_pos[pos0], target_pos[pos1]);
+    //     }
+    //   }
+    // }
 
-    vvi tile_number(N, vi(N, 0));
-    for (int i = 0; i <= 15; ++i) {
-      debug("tile:%d\n", i);
-      for (int j = 0; j < orig_tile_pos[i].size(); ++j) {
-        auto orig_p = orig_tile_pos[i][j];
-        auto target_p = target_tile_pos[i][j];
-        debug("(%d %d) -> (%d %d)\n", orig_p.first, orig_p.second, target_p.first, target_p.second);
-        tile_number[orig_p.first][orig_p.second] = (target_p.first << 8) | target_p.second;
-      }
-    }
-    // check parity
-    vector<vector<pair<int, int>>> back(N, vector<pair<int, int>>(N));
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        int n = tile_number[i][j];
-        back[n >> 8][n & 0xFF] = {i, j};
-      }
-    }
-    int swap_cnt = 0;
-    vector<vector<bool>> visited(N, vector<bool>(N));
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        if (visited[i][j]) continue;
-        visited[i][j] = true;
-        int tr = tile_number[i][j] >> 8;
-        int tc = tile_number[i][j] & 0xFF;
-        int r = back[tr][tc].first;
-        int c = back[tr][tc].second;
-        while(r != i || c != j) {
-          visited[r][c] = true;
-          swap_cnt++;
-          tr = tile_number[r][c] >> 8;
-          tc = tile_number[r][c] & 0xFF;
-          r = back[tr][tc].first;
-          c = back[tr][tc].second;
-        }
-      }
-    }
-    int empty_dist = abs(orig_tile_pos[0][0].first - target_tile_pos[0][0].first) + abs(orig_tile_pos[0][0].second - target_tile_pos[0][0].second);
-    if (swap_cnt % 2 != empty_dist % 2) {
-      for (int i = 1; i <= 15; ++i) {
-        auto& orig_pos = orig_tile_pos[i];
-        auto& target_pos = target_tile_pos[i];
-        if (orig_pos.size() > 1) {
-          debugStr("adjust parity\n");
-          swap(target_pos[0], target_pos[1]);
-          tile_number[orig_pos[0].first][orig_pos[0].second] = (target_pos[0].first << 8) | target_pos[0].second;
-          tile_number[orig_pos[1].first][orig_pos[1].second] = (target_pos[1].first << 8) | target_pos[1].second;
-          break;
-        }
-      }
-    }
+    // vvi tile_number(N, vi(N, 0));
+    // for (int i = 0; i <= 15; ++i) {
+    //   debug("tile:%d\n", i);
+    //   for (int j = 0; j < orig_tile_pos[i].size(); ++j) {
+    //     auto orig_p = orig_tile_pos[i][j];
+    //     auto target_p = target_tile_pos[i][j];
+    //     debug("(%d %d) -> (%d %d)\n", orig_p.first, orig_p.second, target_p.first, target_p.second);
+    //     tile_number[orig_p.first][orig_p.second] = (target_p.first << 8) | target_p.second;
+    //   }
+    // }
+    // // check parity
+    // vector<vector<pair<int, int>>> back(N, vector<pair<int, int>>(N));
+    // for (int i = 0; i < N; ++i) {
+    //   for (int j = 0; j < N; ++j) {
+    //     int n = tile_number[i][j];
+    //     back[n >> 8][n & 0xFF] = {i, j};
+    //   }
+    // }
+    // int swap_cnt = 0;
+    // vector<vector<bool>> visited(N, vector<bool>(N));
+    // for (int i = 0; i < N; ++i) {
+    //   for (int j = 0; j < N; ++j) {
+    //     if (visited[i][j]) continue;
+    //     visited[i][j] = true;
+    //     int tr = tile_number[i][j] >> 8;
+    //     int tc = tile_number[i][j] & 0xFF;
+    //     int r = back[tr][tc].first;
+    //     int c = back[tr][tc].second;
+    //     while(r != i || c != j) {
+    //       visited[r][c] = true;
+    //       swap_cnt++;
+    //       tr = tile_number[r][c] >> 8;
+    //       tc = tile_number[r][c] & 0xFF;
+    //       r = back[tr][tc].first;
+    //       c = back[tr][tc].second;
+    //     }
+    //   }
+    // }
+    // int empty_dist = abs(orig_tile_pos[0][0].first - target_tile_pos[0][0].first) + abs(orig_tile_pos[0][0].second - target_tile_pos[0][0].second);
+    // if (swap_cnt % 2 != empty_dist % 2) {
+    //   for (int i = 1; i <= 15; ++i) {
+    //     auto& orig_pos = orig_tile_pos[i];
+    //     auto& target_pos = target_tile_pos[i];
+    //     if (orig_pos.size() > 1) {
+    //       debugStr("adjust parity\n");
+    //       swap(target_pos[0], target_pos[1]);
+    //       tile_number[orig_pos[0].first][orig_pos[0].second] = (target_pos[0].first << 8) | target_pos[0].second;
+    //       tile_number[orig_pos[1].first][orig_pos[1].second] = (target_pos[1].first << 8) | target_pos[1].second;
+    //       break;
+    //     }
+    //   }
+    // }
 
-    Result res;
-    SlidingBlockPuzzle puzzle(tile_number);
-    res.moves = puzzle.solve();
-    if (res.moves.empty()) {
-      res.tree_size = 0;
-    } else {
-      res.tree_size = N * N - 1;
-    }
-    return res;
+    // Result res;
+    // SlidingBlockPuzzle puzzle(tile_number);
+    // res.moves = puzzle.solve();
+    // if (res.moves.empty()) {
+    //   res.tree_size = 0;
+    // } else {
+    //   res.tree_size = N * N - 1;
+    // }
+    // return res;
   }
-
-  // void create_target() {
-  //   fill(tiles[0].begin(), tiles[0].begin() + N + 2, 0);
-  //   fill(tiles[N + 1].begin(), tiles[N + 1].begin() + N + 2, 0);
-  //   for (int i = 0; i < N; ++i) {
-  //     tiles[i + 1][0] = 0;
-  //     tiles[i + 1][N + 1] = 0;
-  //     copy(orig_tiles[i].begin(), orig_tiles[i].begin() + N, tiles[i + 1].begin() + 1);
-  //   }
-  //   int edges = 0;
-  //   for (int i = 0; i < N; ++i) {
-  //     for (int j = 0; j < N - 1; ++j) {
-  //       if (has_edge(tiles, i + 1, j + 1, RIGHT)) {
-  //         edges++;
-  //       }
-  //     }
-  //   }
-  //   for (int i = 0; i < N - 1; ++i) {
-  //     for (int j = 0; j < N; ++j) {
-  //       if (has_edge(tiles, i + 1, j + 1, DOWN)) {
-  //         edges++;
-  //       }
-  //     }
-  //   }
-  //   const double initial_cooler_log = log(0.1);
-  //   const double final_cooler_log = log(5.0);
-  //   double cooler = 1.0;
-  //   const int max_turn = 100000;
-  //   for (int turn = 0; turn < max_turn; ++turn) {
-  //     if ((turn & 0xFF) == 0) {
-  //       double ratio = turn * 1.0 / max_turn;
-  //       cooler = exp((1.0 - ratio) * initial_cooler_log + ratio * final_cooler_log);
-  //     }
-  //     int pos0 = rnd.nextUInt(N * N);
-  //     int pos1 = rnd.nextUInt(N * N - 1);
-  //     if (pos1 >= pos0) pos1++;
-  //     int r0 = pos0 / N + 1;
-  //     int c0 = pos0 % N + 1;
-  //     int r1 = pos1 / N + 1;
-  //     int c1 = pos1 % N + 1;
-  //     if (tiles[r0][c0] == tiles[r1][c1]) {
-  //       continue;
-  //     }
-  //     if (abs(r0 - r1) + abs(c0 - c1) == 1) {
-  //       continue;
-  //     } 
-  //     int diff = 0;
-  //     for (int i = 0; i < 4; ++i) {
-  //       if (has_edge(tiles, r0, c0, i)) diff--;
-  //       if (has_edge(tiles, r1, c1, i)) diff--;
-  //     }
-  //     swap(tiles[r0][c0], tiles[r1][c1]);
-  //     for (int i = 0; i < 4; ++i) {
-  //       if (has_edge(tiles, r0, c0, i)) diff++;
-  //       if (has_edge(tiles, r1, c1, i)) diff++;
-  //     }
-  //     if (accept(diff, cooler)) {
-  //       edges += diff;
-  //       debug("edges:%d at turn %d\n", edges, turn);
-  //       if (edges == N * N - 2) {
-  //         break;  
-  //       }
-  //     } else {
-  //       swap(tiles[r0][c0], tiles[r1][c1]);
-  //     }
-  //   }
-  //   for (int i = 0; i < N; ++i) {
-  //     copy(tiles[i + 1].begin() + 1, tiles[i + 1].begin() + N + 1, target_tiles[i].begin());
-  //   }
-  // }
-
 };
 
 int main() {
