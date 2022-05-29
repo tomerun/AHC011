@@ -14,7 +14,7 @@
 
 #ifdef LOCAL
 #ifndef NDEBUG
-// #define MEASURE_TIME
+#define MEASURE_TIME
 #define DEBUG
 #endif
 #else
@@ -444,23 +444,15 @@ struct TreePlacer {
       int cut_diff = 0;
       if (count[tile0] > orig_count[tile0]) {
         cut_diff--;
-      } else {
-        cut_diff++;
       }
       if (count[tile1] > orig_count[tile1]) {
         cut_diff--;
-      } else {
-        cut_diff++;
       }
       if (count[tile0 ^ (1 << prev_dir)] < orig_count[tile0 ^ (1 << prev_dir)]) {
         cut_diff--;
-      } else {
-        cut_diff++;
       }
       if (count[tile1 ^ (1 << (prev_dir ^ 2))] < orig_count[tile1 ^ (1 << (prev_dir ^ 2))]) {
         cut_diff--;
-      } else {
-        cut_diff++;
       }
       if (cut_diff < cut_diff_min) {
         cut_diff_min = cut_diff;
@@ -1440,7 +1432,7 @@ struct Solver {
     uint64_t worst_time = 0;
     uint64_t before_time = get_elapsed_msec();
     while (true) {
-      if (get_elapsed_msec() + worst_time > TL / 2) {
+      if (get_elapsed_msec() + worst_time > TL * 3 / 4) {
         debug("total_first_turn:%d\n", turn);
         break;
       }
