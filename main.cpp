@@ -14,7 +14,7 @@
 
 #ifdef LOCAL
 #ifndef NDEBUG
-// #define MEASURE_TIME
+#define MEASURE_TIME
 #define DEBUG
 #endif
 #else
@@ -638,7 +638,7 @@ struct PuzzleSolver {
   }
 
   void convey(const int level, const int r, const int c, const int t) {
-    debug("convey r:%d c:%d\n", r, c);
+    // debug("convey r:%d c:%d\n", r, c);
     // print_tiles(tiles, false);
     int pos0 = 0;
     int pos1 = 0;
@@ -696,7 +696,7 @@ struct PuzzleSolver {
   }
 
   void move_to(const int r, const int c) {
-    debug("move_to r:%d c:%d er:%d ec:%d\n", r, c, er, ec);
+    // debug("move_to r:%d c:%d er:%d ec:%d\n", r, c, er, ec);
     assert(!protect[r][c]);
     static vi path;
     path.clear();
@@ -962,10 +962,11 @@ struct PuzzleSolver {
     }
   }
 
-  bool solve_whole(int size) {
+  bool solve_whole(int size, int best_len) {
     debugStr("solve_whole\n");
     const uint64_t mask = (1ull << (4 * size * size)) - 1;
     const int base_coord = N - size;
+    const int GOAL_LEN = 10;
     uint64_t target_state = 0ull;
     uint64_t initial_state = 0ull;
     for (int i = N - 1; i >= N - 3; --i) {
@@ -981,7 +982,7 @@ struct PuzzleSolver {
     goal_states[target_state] = -1;
     vector<uint64_t> cur_goal_queue;
     cur_goal_queue.push_back(target_state | ((uint64_t)(N - 1) << 40) | ((uint64_t)(N - 1) << 36));
-    for (int turn = 0; !cur_goal_queue.empty() && turn < 10 && goal_states.count(initial_state) == 0; ++turn) {
+    for (int turn = 0; !cur_goal_queue.empty() && turn < GOAL_LEN && goal_states.count(initial_state) == 0; ++turn) {
       debug("turn:%d cur_goal_queue.size:%lu goal_states.size:%lu\n", turn, cur_goal_queue.size(), goal_states.size());
       vector<uint64_t> next_queue;
       for (uint64_t cur_state : cur_goal_queue) {
@@ -1013,7 +1014,7 @@ struct PuzzleSolver {
       visited_states[initial_state] = -1;
       vector<uint64_t> cur_states;
       cur_states.push_back(initial_state | ((uint64_t)er << 40) | ((uint64_t)ec << 36));
-      for (int turn = 0; !cur_states.empty() && turn < 20; ++turn) {
+      for (int turn = 0; !cur_states.empty() && turn < 20 && ans.size() + turn + GOAL_LEN <= best_len + 4; ++turn) {
         debug("turn:%d cur_states.size:%lu visited_states.size:%lu\n", turn, cur_states.size(), visited_states.size());
         vector<uint64_t> next_states;
         for (uint64_t cur_state : cur_states) {
@@ -1086,7 +1087,7 @@ FOUND:
     return true;
   }
 
-  vi solve(bool& success) {
+  vi solve(bool& success, int best_len) {
     START_TIMER(1);
     for (int level = 0; level < N - 3; ++level) {
       int dist_bl = abs(N - 1 - er) + ec;
@@ -1096,10 +1097,14 @@ FOUND:
       } else {
         solve_ccw(level);
       }
+      if (ans.size() > best_len) {
+        success = false;
+        return ans;
+      }
     }
     STOP_TIMER(1);
     START_TIMER(2);
-    success = solve_whole(3);
+    success = solve_whole(3, best_len);
     STOP_TIMER(2);
     return ans;
   }
@@ -1392,7 +1397,7 @@ struct Solver {
         break;
       }
       bool success = false;
-      vi ans_tmp = solve_one(success);
+      vi ans_tmp = solve_one(success, best_ans.size());
       if (success) {
         vi ans;
         for (int i = 0; i < ans_tmp.size(); ++i) {
@@ -1418,7 +1423,7 @@ struct Solver {
     return {best_ans, N * N - 1};
   }
 
-  vi solve_one(bool& success) {
+  vi solve_one(bool& success, int best_len) {
     debugStr("solve_one\n");
     START_TIMER(0);
     TreePlacer tree_placer;
@@ -1444,7 +1449,7 @@ struct Solver {
       tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
     }
     PuzzleSolver puzzle_solver(tiles, target_tiles);
-    return puzzle_solver.solve(success);
+    return puzzle_solver.solve(success, best_len);
 
     // create matching from original tiles
     // vector<vector<pair<int, int>>> orig_tile_pos(16);
