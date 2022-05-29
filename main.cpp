@@ -562,7 +562,7 @@ struct TreePlacer {
         cur_diff += diff;
         // debug("cur_diff:%d at turn %d\n", cur_diff, turn);
         if (cur_diff == 0) {
-          debug("found valid tree at turn %d\n", turn);
+          // debug("found valid tree at turn %d\n", turn);
           assert(count == orig_count);
           break;  
         }
@@ -963,7 +963,6 @@ struct PuzzleSolver {
   }
 
   bool solve_whole(int size, int best_len) {
-    debugStr("solve_whole\n");
     const uint64_t mask = (1ull << (4 * size * size)) - 1;
     const int base_coord = N - size;
     const int GOAL_LEN = 10;
@@ -983,7 +982,7 @@ struct PuzzleSolver {
     vector<uint64_t> cur_goal_queue;
     cur_goal_queue.push_back(target_state | ((uint64_t)(N - 1) << 40) | ((uint64_t)(N - 1) << 36));
     for (int turn = 0; !cur_goal_queue.empty() && turn < GOAL_LEN && goal_states.count(initial_state) == 0; ++turn) {
-      debug("turn:%d cur_goal_queue.size:%lu goal_states.size:%lu\n", turn, cur_goal_queue.size(), goal_states.size());
+      // debug("turn:%d cur_goal_queue.size:%lu goal_states.size:%lu\n", turn, cur_goal_queue.size(), goal_states.size());
       vector<uint64_t> next_queue;
       for (uint64_t cur_state : cur_goal_queue) {
         int cr = (int)(cur_state >> 40);
@@ -1015,7 +1014,7 @@ struct PuzzleSolver {
       vector<uint64_t> cur_states;
       cur_states.push_back(initial_state | ((uint64_t)er << 40) | ((uint64_t)ec << 36));
       for (int turn = 0; !cur_states.empty() && turn < 20 && ans.size() + turn + GOAL_LEN <= best_len + 4; ++turn) {
-        debug("turn:%d cur_states.size:%lu visited_states.size:%lu\n", turn, cur_states.size(), visited_states.size());
+        // debug("turn:%d cur_states.size:%lu visited_states.size:%lu\n", turn, cur_states.size(), visited_states.size());
         vector<uint64_t> next_states;
         for (uint64_t cur_state : cur_states) {
           int cr = (int)(cur_state >> 40);
@@ -1386,45 +1385,95 @@ struct SlidingBlockPuzzle {
 struct Solver {
   Solver() {}
 
+  void remove_redundant_moves(vi& moves) {
+    vi moves_tmp;
+    for (int i = 0; i < moves.size(); ++i) {
+      if (!moves_tmp.empty() && moves_tmp.back() == (moves[i] ^ 2)) {
+        // debug("redundant moves at %d\n", i);
+        moves_tmp.pop_back();
+      } else {
+        moves_tmp.push_back(moves[i]);
+      }
+    }
+    swap(moves, moves_tmp);
+  }
+
   Result solve() {
     vi best_ans(T + 1, 0);
     int turn = 0;
     uint64_t worst_time = 0;
     uint64_t before_time = get_elapsed_msec();
     while (true) {
-      if (get_elapsed_msec() + worst_time > TL) {
-        debug("total turn:%d\n", turn);
+      if (get_elapsed_msec() + worst_time > TL / 2) {
+        debug("total_first_turn:%d\n", turn);
         break;
       }
       bool success = false;
-      vi ans_tmp = solve_one(success, best_ans.size());
+      vi ans = solve_one(success, best_ans.size());
       if (success) {
-        vi ans;
-        for (int i = 0; i < ans_tmp.size(); ++i) {
-          if (!ans.empty() && ans.back() == (ans_tmp[i] ^ 2)) {
-            debug("redundant moves at %d\n", i);
-            ans.pop_back();
-          } else {
-            ans.push_back(ans_tmp[i]);
-          }
-        }
+        remove_redundant_moves(ans);
         if (ans.size() < best_ans.size()) {
           swap(ans, best_ans);
           debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
         }
-      } else {
-        debug("fail at turn:%d\n", turn);
       }
       turn++;
       uint64_t after_time = get_elapsed_msec();
       worst_time = max(worst_time, after_time - before_time);
       before_time = after_time;
     }
+
+    turn = 0;
+    worst_time = 0;
+    before_time = get_elapsed_msec();
+    vvi target_tiles;
+    vvi initial_tiles;
+    for (int i = 0; i < N; ++i) {
+      initial_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
+      target_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
+    }
+    int er = 0;
+    int ec = 0;
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+        if (initial_tiles[i][j] == EMPTY) {
+          er = i;
+          ec = j;
+        }
+      }
+    }
+    for (int dir : best_ans) {
+      int nr = er + DR[dir];
+      int nc = ec + DC[dir];
+      swap(target_tiles[er][ec], target_tiles[nr][nc]);
+      er = nr;
+      ec = nc;
+    }
+    while (true) {
+      if (get_elapsed_msec() + worst_time > TL) {
+        debug("total_second_turn:%d\n", turn);
+        break;
+      }
+      bool success = false;
+      PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
+      vi ans = puzzle_solver.solve(success, best_ans.size());
+      if (success) {
+        remove_redundant_moves(ans);
+        if (ans.size() < best_ans.size()) {
+          swap(ans, best_ans);
+          debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
+        }
+      }
+      turn++;
+      uint64_t after_time = get_elapsed_msec();
+      worst_time = max(worst_time, after_time - before_time);
+      before_time = after_time;
+    }
+
     return {best_ans, N * N - 1};
   }
 
   vi solve_one(bool& success, int best_len) {
-    debugStr("solve_one\n");
     START_TIMER(0);
     TreePlacer tree_placer;
     vvi target_tiles = tree_placer.find();
@@ -1442,7 +1491,7 @@ struct Solver {
       row.pop_back();
       row.erase(row.begin());
     }
-    print_tiles(target_tiles, false);
+    // print_tiles(target_tiles, false);
 
     vvi tiles;
     for (int i = 0; i < N; ++i) {
