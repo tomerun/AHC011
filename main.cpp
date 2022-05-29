@@ -322,19 +322,23 @@ int verify(const vector<int>& moves) {
     for (int j = 0; j < N; ++j) {
       if (tiles[i][j] == EMPTY || visited[i][j]) continue;
       bool loop = false;
-      vi q = {(i << 8) | j};
+      vi q = {(5 << 16) | (i << 8) | j};
       int qi = 0;
+      visited[i][j] = true;
       while (qi < q.size()) {
-        int pr = q[qi] >> 8;
+        int pd = (q[qi] >> 16) & 0xFF;
+        int pr = (q[qi] >> 8) & 0xFF;
         int pc = q[qi] & 0xFF;
         for (int d = 0; d < 4; ++d) {
+          if (d == pd) continue;
           int nr = pr + DR[d];
           int nc = pc + DC[d];
-          if (in_grid(nr) && in_grid(cc) && has_edge(tiles, i, j, d)) {
+          if (in_grid(nr) && in_grid(cc) && has_edge(tiles, pr, pc, d)) {
             if (visited[nr][nc]) {
               loop = true;
             } else {
-              q.push_back((nr << 8) | nc);
+              q.push_back(((d ^ 2) << 16) | (nr << 8) | nc);
+              visited[nr][nc] = true;
             }
           }
         }
@@ -683,13 +687,8 @@ struct PuzzleSolver {
   }
 
   void convey(const int level, const int r, const int c, const int t) {
-    debugln();
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        debug("%x", tiles[i][j]);
-      }
-      debugln();
-    }    
+    debug("convey r:%d c:%d\n", r, c);
+    // print_tiles(tiles, false);
     int pos0 = 0;
     int pos1 = 0;
     int dist0 = INF;
@@ -717,14 +716,13 @@ struct PuzzleSolver {
     // }
     int tr = pos0 >> 8;
     int tc = pos0 & 0xFF;
-    debugln();
-    debug("convey r:%d c:%d tr:%d tc:%d\n", r, c, tr, tc);
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        debug("%d", (int)protect[i][j]);
-      }
-      debugln();
-    }
+    // debug("convey r:%d c:%d tr:%d tc:%d\n", r, c, tr, tc);
+    // for (int i = 0; i < N; ++i) {
+    //   for (int j = 0; j < N; ++j) {
+    //     debug("%d", (int)protect[i][j]);
+    //   }
+    //   debugln();
+    // }
     while (tr != r || tc != c) {
       protect[tr][tc] = true;
       // TODO: randomize order
@@ -759,12 +757,12 @@ struct PuzzleSolver {
     }
     assert(path.empty());
     debugStr("move_to_bfs\n");
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        debug("%d", (int)protect[i][j]);
-      }
-      debugln();
-    }
+    // for (int i = 0; i < N; ++i) {
+    //   for (int j = 0; j < N; ++j) {
+    //     debug("%d", (int)protect[i][j]);
+    //   }
+    //   debugln();
+    // }
     static vi bfs_que;
     bfs_que.clear();
     bfs_que.push_back((er << 8) | ec);
@@ -774,7 +772,7 @@ struct PuzzleSolver {
     while (true) {
       int cr = bfs_que[qi] >> 8;
       int cc = bfs_que[qi] & 0xFF;
-      debug("cr:%d cc:%d\n", cr, cc);
+      // debug("cr:%d cc:%d\n", cr, cc);
       if (cr == r && cc == c) break;
       for (int i = 0; i < 4; ++i) {
         int nr = cr + DR[i];
@@ -791,7 +789,7 @@ struct PuzzleSolver {
     int cr = r;
     int cc = c;
     while (cr != er || cc != ec) {
-      debug("back cr:%d cc:%d\n", cr, cc);
+      // debug("back cr:%d cc:%d\n", cr, cc);
       path.push_back(bfs_from[cr][cc]);
       cr -= DR[path.back()];
       cc -= DC[path.back()];
@@ -852,7 +850,7 @@ struct PuzzleSolver {
       convey(level, i, level, target[i][level]);
       protect[i][level] = true;
     }
-    if (tiles[level + 1][level] == target[level][level] && tiles[level][level] == target[level][level]) {
+    if (tiles[level + 1][level] == target[level + 1][level] && tiles[level][level] == target[level][level]) {
       // ok
       protect[level + 1][level] = true;
       protect[level][level] = true;
@@ -927,7 +925,6 @@ struct PuzzleSolver {
       }
       protect[level][N - 1] = true;
     }
-    debugStr("solve_cw end\n");
   }
 
   bool solve_whole(int size) {
@@ -949,12 +946,11 @@ struct PuzzleSolver {
     cur_states.push_back(initial_state | ((uint64_t)er << 40) | ((uint64_t)ec << 36));
     debugStr("solve_whole\n");
     for (int turn = 0; !cur_states.empty(); ++turn) {
-      debug("turn:%d cur_states.size:%lu visited_states.size:%lu\n", turn, cur_states.size(), visited_states.size());
+      // debug("turn:%d cur_states.size:%lu visited_states.size:%lu\n", turn, cur_states.size(), visited_states.size());
       vector<uint64_t> next_states;
       for (uint64_t cur_state : cur_states) {
         int cr = (int)(cur_state >> 40);
         int cc = (int)(cur_state >> 36) & 0xF;
-        // debug("cr:%d cc:%d\n", cr, cc);
         cur_state &= mask;
         int cur_bit_pos = ((cr - base_coord) * size + (cc - base_coord)) * 4;
         for (int dir = 0; dir < 4; ++dir) {
@@ -1298,9 +1294,13 @@ struct Solver {
       }
       bool success = false;
       vi ans = solve_one(success);
-      if (success && ans.size() < best_ans.size()) {
-        swap(ans, best_ans);
-        debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
+      if (success) {
+        if (ans.size() < best_ans.size()) {
+          swap(ans, best_ans);
+          debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
+        }
+      } else {
+        debug("fail at turn:%d\n", turn);
       }
       turn++;
       uint64_t after_time = get_elapsed_msec();
@@ -1442,10 +1442,15 @@ int main() {
 
   auto solver = unique_ptr<Solver>(new Solver());
   Result res = solver->solve();
-  debug("score=%d\n", res.score());
   for (int m : res.moves) {
     printf("%c", DIR_CHARS[m]);
   }
   printf("\n");
   fflush(stdout);
+#ifdef LOCAL
+  int verify_score = verify(res.moves);
+  debug("verify score=%d\n", verify_score);
+  debug("score=%d\n", res.score());
+  assert(res.score() == verify_score);
+#endif
 }
