@@ -1535,103 +1535,12 @@ struct Solver {
     }
     PuzzleSolver puzzle_solver(tiles, target_tiles);
     return puzzle_solver.solve(success, best_len);
-
-    // create matching from original tiles
-    // vector<vector<pair<int, int>>> orig_tile_pos(16);
-    // vector<vector<pair<int, int>>> target_tile_pos(16);
-    // for (int i = 0; i < N; ++i) {
-    //   for (int j = 0; j < N; ++j) {
-    //     orig_tile_pos[orig_tiles[i][j]].push_back({i, j});
-    //     target_tile_pos[target_tiles[i][j]].push_back({i, j});
-    //   }
-    // }
-    // for (int i = 1; i <= 15; ++i) {
-    //   vector<pair<int, int>>& orig_pos = orig_tile_pos[i];
-    //   vector<pair<int, int>>& target_pos = target_tile_pos[i];
-    //   if (orig_pos.size() <= 1) continue;
-    //   for (int turn = 0; turn < orig_pos.size() * 100; ++turn) {
-    //     int pos0 = rnd.nextUInt(orig_pos.size());
-    //     int pos1 = rnd.nextUInt(orig_pos.size() - 1);
-    //     if (pos0 <= pos1) pos1++;
-    //     int cur_dist = abs(orig_pos[pos0].first - target_pos[pos0].first) + abs(orig_pos[pos0].second - target_pos[pos0].second);
-    //     cur_dist += abs(orig_pos[pos1].first - target_pos[pos1].first) + abs(orig_pos[pos1].second - target_pos[pos1].second);
-    //     int new_dist = abs(orig_pos[pos0].first - target_pos[pos1].first) + abs(orig_pos[pos0].second - target_pos[pos1].second);
-    //     new_dist += abs(orig_pos[pos1].first - target_pos[pos0].first) + abs(orig_pos[pos1].second - target_pos[pos0].second);
-    //     if (new_dist <= cur_dist) {
-    //       swap(target_pos[pos0], target_pos[pos1]);
-    //     }
-    //   }
-    // }
-
-    // vvi tile_number(N, vi(N, 0));
-    // for (int i = 0; i <= 15; ++i) {
-    //   debug("tile:%d\n", i);
-    //   for (int j = 0; j < orig_tile_pos[i].size(); ++j) {
-    //     auto orig_p = orig_tile_pos[i][j];
-    //     auto target_p = target_tile_pos[i][j];
-    //     debug("(%d %d) -> (%d %d)\n", orig_p.first, orig_p.second, target_p.first, target_p.second);
-    //     tile_number[orig_p.first][orig_p.second] = (target_p.first << 8) | target_p.second;
-    //   }
-    // }
-    // // check parity
-    // vector<vector<pair<int, int>>> back(N, vector<pair<int, int>>(N));
-    // for (int i = 0; i < N; ++i) {
-    //   for (int j = 0; j < N; ++j) {
-    //     int n = tile_number[i][j];
-    //     back[n >> 8][n & 0xFF] = {i, j};
-    //   }
-    // }
-    // int swap_cnt = 0;
-    // vector<vector<bool>> visited(N, vector<bool>(N));
-    // for (int i = 0; i < N; ++i) {
-    //   for (int j = 0; j < N; ++j) {
-    //     if (visited[i][j]) continue;
-    //     visited[i][j] = true;
-    //     int tr = tile_number[i][j] >> 8;
-    //     int tc = tile_number[i][j] & 0xFF;
-    //     int r = back[tr][tc].first;
-    //     int c = back[tr][tc].second;
-    //     while(r != i || c != j) {
-    //       visited[r][c] = true;
-    //       swap_cnt++;
-    //       tr = tile_number[r][c] >> 8;
-    //       tc = tile_number[r][c] & 0xFF;
-    //       r = back[tr][tc].first;
-    //       c = back[tr][tc].second;
-    //     }
-    //   }
-    // }
-    // int empty_dist = abs(orig_tile_pos[0][0].first - target_tile_pos[0][0].first) + abs(orig_tile_pos[0][0].second - target_tile_pos[0][0].second);
-    // if (swap_cnt % 2 != empty_dist % 2) {
-    //   for (int i = 1; i <= 15; ++i) {
-    //     auto& orig_pos = orig_tile_pos[i];
-    //     auto& target_pos = target_tile_pos[i];
-    //     if (orig_pos.size() > 1) {
-    //       debugStr("adjust parity\n");
-    //       swap(target_pos[0], target_pos[1]);
-    //       tile_number[orig_pos[0].first][orig_pos[0].second] = (target_pos[0].first << 8) | target_pos[0].second;
-    //       tile_number[orig_pos[1].first][orig_pos[1].second] = (target_pos[1].first << 8) | target_pos[1].second;
-    //       break;
-    //     }
-    //   }
-    // }
-
-    // Result res;
-    // SlidingBlockPuzzle puzzle(tile_number);
-    // res.moves = puzzle.solve();
-    // if (res.moves.empty()) {
-    //   res.tree_size = 0;
-    // } else {
-    //   res.tree_size = N * N - 1;
-    // }
-    // return res;
   }
 };
 
 int main() {
   start_time = get_time();
   scanf("%d %d", &N, &T);
-
   for (int i = 0; i < N; ++i) {
     char row[11];
     scanf("%s", row);
