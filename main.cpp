@@ -14,7 +14,7 @@
 
 #ifdef LOCAL
 #ifndef NDEBUG
-#define MEASURE_TIME
+// #define MEASURE_TIME
 #define DEBUG
 #endif
 #else
@@ -810,31 +810,40 @@ struct PuzzleSolver {
     } else {
       convey(level, level + 1, level, target[level][level]);
       protect[level + 1][level] = true;
+      bool skip = false;
       if (er == level && ec == level) {
-        step(RIGHT);
+        if (tiles[level + 1][level + 1] == target[level + 1][level]) {
+          step(DOWN);
+          step(RIGHT);
+          skip = true;
+        } else {
+          step(RIGHT);
+        }
       }
-      if (tiles[level][level] == target[level + 1][level]) {
-        move_to(level + 1, level + 1);
-        step(LEFT);
-        step(DOWN);
-        step(RIGHT);
-        step(RIGHT);
-        step(UP);
-        step(UP);
-        step(LEFT);
-        step(DOWN);
-        step(DOWN);
-        step(LEFT);
-        step(UP);
-        step(UP);
-        step(RIGHT);
-      } else {
-        convey(level, level + 1, level + 1, target[level + 1][level]);
-        protect[level + 1][level + 1] = true;
-        move_to(level, level);
-        protect[level + 1][level + 1] = false;
-        step(DOWN);
-        step(RIGHT);
+      if (!skip) {
+        if (tiles[level][level] == target[level + 1][level]) {
+          move_to(level + 1, level + 1);
+          step(LEFT);
+          step(DOWN);
+          step(RIGHT);
+          step(RIGHT);
+          step(UP);
+          step(UP);
+          step(LEFT);
+          step(DOWN);
+          step(DOWN);
+          step(LEFT);
+          step(UP);
+          step(UP);
+          step(RIGHT);
+        } else {
+          convey(level, level + 1, level + 1, target[level + 1][level]);
+          protect[level + 1][level + 1] = true;
+          move_to(level, level);
+          protect[level + 1][level + 1] = false;
+          step(DOWN);
+          step(RIGHT);
+        }
       }
       protect[level][level] = true;
     }
@@ -850,31 +859,40 @@ struct PuzzleSolver {
     } else {
       convey(level, level, N - 2, target[level][N - 1]);
       protect[level][N - 2] = true;
+      bool skip = false;
       if (er == level && ec == N - 1) {
-        step(DOWN);
+        if (tiles[level + 1][N - 2] == target[level][N - 2]) {
+          step(LEFT);
+          step(DOWN);
+          skip = true;
+        } else {
+          step(DOWN);
+        }
       }
-      if (tiles[level][N - 1] == target[level][N - 2]) {
-        move_to(level + 1, N - 2);
-        step(UP);
-        step(LEFT);
-        step(DOWN);
-        step(DOWN);
-        step(RIGHT);
-        step(RIGHT);
-        step(UP);
-        step(LEFT);
-        step(LEFT);
-        step(UP);
-        step(RIGHT);
-        step(RIGHT);
-        step(DOWN);
-      } else {
-        convey(level, level + 1, N - 2, target[level][N - 2]);
-        protect[level + 1][N - 2] = true;
-        move_to(level, N - 1);
-        protect[level + 1][N - 2] = false;
-        step(LEFT);
-        step(DOWN);
+      if (!skip) {
+        if (tiles[level][N - 1] == target[level][N - 2]) {
+          move_to(level + 1, N - 2);
+          step(UP);
+          step(LEFT);
+          step(DOWN);
+          step(DOWN);
+          step(RIGHT);
+          step(RIGHT);
+          step(UP);
+          step(LEFT);
+          step(LEFT);
+          step(UP);
+          step(RIGHT);
+          step(RIGHT);
+          step(DOWN);
+        } else {
+          convey(level, level + 1, N - 2, target[level][N - 2]);
+          protect[level + 1][N - 2] = true;
+          move_to(level, N - 1);
+          protect[level + 1][N - 2] = false;
+          step(LEFT);
+          step(DOWN);
+        }
       }
       protect[level][N - 1] = true;
     }
@@ -892,31 +910,40 @@ struct PuzzleSolver {
     } else {
       convey(level, level, level + 1, target[level][level]);
       protect[level][level + 1] = true;
+      bool skip = false;
       if (er == level && ec == level) {
-        step(DOWN);
+        if (tiles[level + 1][level + 1] == target[level][level + 1]) {
+          step(RIGHT);
+          step(DOWN);
+          skip = true;
+        } else {
+          step(DOWN);
+        }
       }
-      if (tiles[level][level] == target[level][level + 1]) {
-        move_to(level + 1, level + 1);
-        step(UP);
-        step(RIGHT);
-        step(DOWN);
-        step(DOWN);
-        step(LEFT);
-        step(LEFT);
-        step(UP);
-        step(RIGHT);
-        step(RIGHT);
-        step(UP);
-        step(LEFT);
-        step(LEFT);
-        step(DOWN);
-      } else {
-        convey(level, level + 1, level + 1, target[level][level + 1]);
-        protect[level + 1][level + 1] = true;
-        move_to(level, level);
-        protect[level + 1][level + 1] = false;
-        step(RIGHT);
-        step(DOWN);
+      if (!skip) {
+        if (tiles[level][level] == target[level][level + 1]) {
+          move_to(level + 1, level + 1);
+          step(UP);
+          step(RIGHT);
+          step(DOWN);
+          step(DOWN);
+          step(LEFT);
+          step(LEFT);
+          step(UP);
+          step(RIGHT);
+          step(RIGHT);
+          step(UP);
+          step(LEFT);
+          step(LEFT);
+          step(DOWN);
+        } else {
+          convey(level, level + 1, level + 1, target[level][level + 1]);
+          protect[level + 1][level + 1] = true;
+          move_to(level, level);
+          protect[level + 1][level + 1] = false;
+          step(RIGHT);
+          step(DOWN);
+        }
       }
       protect[level][level] = true;
     }
@@ -932,31 +959,40 @@ struct PuzzleSolver {
     } else {
       convey(level, N - 2, level, target[N - 1][level]);
       protect[N - 2][level] = true;
+      bool skip = false;
       if (er == N - 1 && ec == level) {
-        step(RIGHT);
+        if (tiles[N - 2][level + 1] == target[N - 2][level]) {
+          step(UP);
+          step(RIGHT);
+          skip = true;
+        } else {
+          step(RIGHT);
+        }
       }
-      if (tiles[N - 1][level] == target[N - 2][level]) {
-        move_to(N - 2, level + 1);
-        step(LEFT);
-        step(UP);
-        step(RIGHT);
-        step(RIGHT);
-        step(DOWN);
-        step(DOWN);
-        step(LEFT);
-        step(UP);
-        step(UP);
-        step(LEFT);
-        step(DOWN);
-        step(DOWN);
-        step(RIGHT);
-      } else {
-        convey(level, N - 2, level + 1, target[N - 2][level]);
-        protect[N - 2][level + 1] = true;
-        move_to(N - 1, level);
-        protect[N - 2][level + 1] = false;
-        step(UP);
-        step(RIGHT);
+      if (!skip) {
+        if (tiles[N - 1][level] == target[N - 2][level]) {
+          move_to(N - 2, level + 1);
+          step(LEFT);
+          step(UP);
+          step(RIGHT);
+          step(RIGHT);
+          step(DOWN);
+          step(DOWN);
+          step(LEFT);
+          step(UP);
+          step(UP);
+          step(LEFT);
+          step(DOWN);
+          step(DOWN);
+          step(RIGHT);
+        } else {
+          convey(level, N - 2, level + 1, target[N - 2][level]);
+          protect[N - 2][level + 1] = true;
+          move_to(N - 1, level);
+          protect[N - 2][level + 1] = false;
+          step(UP);
+          step(RIGHT);
+        }
       }
       protect[N - 1][level] = true;
     }
