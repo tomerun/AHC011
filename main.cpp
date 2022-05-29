@@ -41,7 +41,7 @@ constexpr double CLOCK_PER_SEC = 3.126448e9;
 constexpr ll TL = 1000;
 #else
 constexpr double CLOCK_PER_SEC = 2.5e9;
-constexpr ll TL = 2500;
+constexpr ll TL = 2000;
 #endif
 
 ll start_time; // msec
