@@ -648,7 +648,9 @@ struct PuzzleSolver {
       for (int j = level; j < N; ++j) {
         if (tiles[i][j] != t) continue;
         if (protect[i][j]) continue;
-        int dist = abs(r - i) + abs(c - j);
+        int dist_r = abs(r - i);
+        int dist_c = abs(c - j);
+        int dist = min(dist_r, dist_c) * 2 * 5 + (dist_r + dist_c - min(dist_r, dist_c) * 2) * 5 + abs(er - i) + abs(ec - j);
         if (dist < dist0) {
           dist1 = dist0;
           pos1 = pos0;
@@ -676,8 +678,9 @@ struct PuzzleSolver {
     // }
     while (tr != r || tc != c) {
       protect[tr][tc] = true;
-      // TODO: randomize order
-      for (int dir = 0; dir < 4; ++dir) {
+      int order_base = rnd.nextUInt() & 3;
+      for (int i = 0; i < 4; ++i) {
+        int dir = (i + order_base) & 3;
         if ((r - tr) * DR[dir] + (c - tc) * DC[dir] > 0 && !protect[tr + DR[dir]][tc + DC[dir]]) {
           move_to(tr + DR[dir], tc + DC[dir]);
           protect[tr][tc] = false;
@@ -693,7 +696,6 @@ struct PuzzleSolver {
   }
 
   void move_to(const int r, const int c) {
-    debugln();
     debug("move_to r:%d c:%d er:%d ec:%d\n", r, c, er, ec);
     assert(!protect[r][c]);
     static vi path;
@@ -707,7 +709,7 @@ struct PuzzleSolver {
       return;
     }
     assert(path.empty());
-    debugStr("move_to_bfs\n");
+    // debugStr("move_to_bfs\n");
     // for (int i = 0; i < N; ++i) {
     //   for (int j = 0; j < N; ++j) {
     //     debug("%d", (int)protect[i][j]);
@@ -961,9 +963,11 @@ struct PuzzleSolver {
   }
 
   bool solve_whole(int size) {
+    debugStr("solve_whole\n");
+    const uint64_t mask = (1ull << (4 * size * size)) - 1;
+    const int base_coord = N - size;
     uint64_t target_state = 0ull;
     uint64_t initial_state = 0ull;
-    int base_coord = N - size;
     for (int i = N - 1; i >= N - 3; --i) {
       for (int j = N - 1; j >= N - 3; --j) {
         target_state <<= 4;
@@ -972,16 +976,15 @@ struct PuzzleSolver {
         initial_state |= tiles[i][j];
       }
     }
-    unordered_map<uint64_t, int8_t> visited_states;
-    visited_states[initial_state] = -1;
-    vector<uint64_t> cur_states;
-    const uint64_t mask = (1ull << (4 * size * size)) - 1;
-    cur_states.push_back(initial_state | ((uint64_t)er << 40) | ((uint64_t)ec << 36));
-    debugStr("solve_whole\n");
-    for (int turn = 0; !cur_states.empty(); ++turn) {
-      // debug("turn:%d cur_states.size:%lu visited_states.size:%lu\n", turn, cur_states.size(), visited_states.size());
-      vector<uint64_t> next_states;
-      for (uint64_t cur_state : cur_states) {
+
+    unordered_map<uint64_t, int8_t> goal_states;
+    goal_states[target_state] = -1;
+    vector<uint64_t> cur_goal_queue;
+    cur_goal_queue.push_back(target_state | ((uint64_t)(N - 1) << 40) | ((uint64_t)(N - 1) << 36));
+    for (int turn = 0; !cur_goal_queue.empty() && turn < 10 && goal_states.count(initial_state) == 0; ++turn) {
+      debug("turn:%d cur_goal_queue.size:%lu goal_states.size:%lu\n", turn, cur_goal_queue.size(), goal_states.size());
+      vector<uint64_t> next_queue;
+      for (uint64_t cur_state : cur_goal_queue) {
         int cr = (int)(cur_state >> 40);
         int cc = (int)(cur_state >> 36) & 0xF;
         cur_state &= mask;
@@ -993,21 +996,55 @@ struct PuzzleSolver {
           int next_bit_pos = ((nr - base_coord) * size + (nc - base_coord)) * 4;
           uint64_t tile = (cur_state >> next_bit_pos) & 0xF;
           uint64_t next_state = (cur_state ^ (tile << next_bit_pos)) | (tile << cur_bit_pos);
-          if (visited_states.count(next_state) == 0) {
-            visited_states[next_state] = dir;
-            if (next_state == target_state) {
-              goto FOUND;
-            }
-            next_states.push_back(next_state | ((uint64_t)nr << 40) | ((uint64_t)nc << 36));
+          if (goal_states.count(next_state) == 0) {
+            goal_states[next_state] = dir;
+            next_queue.push_back(next_state | ((uint64_t)nr << 40) | ((uint64_t)nc << 36));
           }
         }
       }
-      swap(cur_states, next_states);
+      swap(cur_goal_queue, next_queue);
     }
-    return false;
+
+    uint64_t finish_state = 0ull;
+    unordered_map<uint64_t, int8_t> visited_states;
+    if (goal_states.count(initial_state) != 0) {
+      finish_state = initial_state;
+    } else {
+      visited_states[initial_state] = -1;
+      vector<uint64_t> cur_states;
+      cur_states.push_back(initial_state | ((uint64_t)er << 40) | ((uint64_t)ec << 36));
+      for (int turn = 0; !cur_states.empty() && turn < 20; ++turn) {
+        debug("turn:%d cur_states.size:%lu visited_states.size:%lu\n", turn, cur_states.size(), visited_states.size());
+        vector<uint64_t> next_states;
+        for (uint64_t cur_state : cur_states) {
+          int cr = (int)(cur_state >> 40);
+          int cc = (int)(cur_state >> 36) & 0xF;
+          cur_state &= mask;
+          int cur_bit_pos = ((cr - base_coord) * size + (cc - base_coord)) * 4;
+          for (int dir = 0; dir < 4; ++dir) {
+            int nr = cr + DR[dir];
+            int nc = cc + DC[dir];
+            if (nr < base_coord || N <= nr || nc < base_coord || N <= nc) continue;
+            int next_bit_pos = ((nr - base_coord) * size + (nc - base_coord)) * 4;
+            uint64_t tile = (cur_state >> next_bit_pos) & 0xF;
+            uint64_t next_state = (cur_state ^ (tile << next_bit_pos)) | (tile << cur_bit_pos);
+            if (visited_states.count(next_state) == 0) {
+              visited_states[next_state] = dir;
+              if (goal_states.count(next_state) != 0) {
+                finish_state = next_state;
+                goto FOUND;
+              }
+              next_states.push_back(next_state | ((uint64_t)nr << 40) | ((uint64_t)nc << 36));
+            }
+          }
+        }
+        swap(cur_states, next_states);
+      }
+      return false;
+    }
 FOUND:
     vi path;
-    uint64_t s = target_state;
+    uint64_t s = finish_state;
     while (s != initial_state) {
       for (int i = 0; i < size * size; ++i) {
         if (((s >> (i * 4)) & 0xF) == 0) {
@@ -1027,10 +1064,30 @@ FOUND:
     for (auto itr = path.rbegin(); itr != path.rend(); ++itr) {
       ans.push_back(*itr);
     }
+
+    s = finish_state;
+    while (s != target_state) {
+      for (int i = 0; i < size * size; ++i) {
+        if (((s >> (i * 4)) & 0xF) == 0) {
+          int r = i / size;
+          int c = i % size;
+          int dir = goal_states[s] ^ 2;
+          ans.push_back(dir);
+          int nr = r + DR[dir];
+          int nc = c + DC[dir];
+          uint64_t tile = (s >> ((nr * size + nc) * 4)) & 0xF;
+          s ^= tile << ((nr * size + nc) * 4);
+          s |= tile << ((r * size + c) * 4);
+          break;
+        }
+      }
+    }
+
     return true;
   }
 
   vi solve(bool& success) {
+    START_TIMER(1);
     for (int level = 0; level < N - 3; ++level) {
       int dist_bl = abs(N - 1 - er) + ec;
       int dist_tr = er + abs(N - 1 - ec);
@@ -1040,7 +1097,10 @@ FOUND:
         solve_ccw(level);
       }
     }
+    STOP_TIMER(1);
+    START_TIMER(2);
     success = solve_whole(3);
+    STOP_TIMER(2);
     return ans;
   }
 };
@@ -1332,8 +1392,17 @@ struct Solver {
         break;
       }
       bool success = false;
-      vi ans = solve_one(success);
+      vi ans_tmp = solve_one(success);
       if (success) {
+        vi ans;
+        for (int i = 0; i < ans_tmp.size(); ++i) {
+          if (!ans.empty() && ans.back() == (ans_tmp[i] ^ 2)) {
+            debug("redundant moves at %d\n", i);
+            ans.pop_back();
+          } else {
+            ans.push_back(ans_tmp[i]);
+          }
+        }
         if (ans.size() < best_ans.size()) {
           swap(ans, best_ans);
           debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
@@ -1351,8 +1420,10 @@ struct Solver {
 
   vi solve_one(bool& success) {
     debugStr("solve_one\n");
+    START_TIMER(0);
     TreePlacer tree_placer;
     vvi target_tiles = tree_placer.find();
+    STOP_TIMER(0);
     if (target_tiles.empty()) {
       debugStr("faile to find target tree\n");
       success = false;
@@ -1489,6 +1560,7 @@ int main() {
   }
   printf("\n");
   fflush(stdout);
+  PRINT_TIMER();
 #ifdef LOCAL
   int verify_score = verify(res.moves);
   debug("verify score=%d\n", verify_score);
