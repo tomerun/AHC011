@@ -487,7 +487,7 @@ struct TreePlacer {
     for (int i = 1; i <= 15; ++i) {
       cur_diff += abs(orig_count[i] - count[i]);
     }
-    const double initial_cooler_log = log(0.1);
+    const double initial_cooler_log = log(0.5);
     const double final_cooler_log = log(5.0);
     double cooler = 1.0;
     const int max_turn = 100000;
