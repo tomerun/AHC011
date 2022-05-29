@@ -1,8 +1,8 @@
 require 'date'
 require 'fileutils'
 
-range = 5
-array_size = 2
+range = 100
+array_size = 10
 contest_id = "AHC011"
 solver_id = DateTime.now.strftime("%d%H%M")
 solver_path = "#{contest_id}/#{solver_id}"
