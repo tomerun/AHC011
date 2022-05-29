@@ -560,6 +560,7 @@ struct TreePlacer {
         tiles[cut_r][cut_c] ^= 1 << prev_dir;
         tiles[ncut_r][ncut_c] ^= 1 << (prev_dir ^ 2);
         cur_diff += diff;
+        // debug("cur_diff:%d at turn %d\n", cur_diff, turn);
         if (cur_diff == 0) {
           debug("found valid tree at turn %d\n", turn);
           assert(count == orig_count);
@@ -584,56 +585,6 @@ struct TreePlacer {
       return vvi();
     }
   }
-
-  // bool dfs(int r, int c, vvi& tiles) {
-  //   vi cands;
-  //   for (int i = 1; i <= 15; ++i) {
-  //     if (count[i] == 0) continue;
-  //     bool ok = true;
-  //     for (int j = 0; j < 4; ++j) {
-  //       int nr = r + DR[j];
-  //       int nc = c + DC[j];
-  //       if (i & (1 << j)) {
-  //         if (tiles[nr][nc] == WAITING) {
-  //           ok = false;
-  //           break;
-  //         } else if (tiles[nr][nc] != YET) {
-  //           if ((tiles[nr][nc] & (1 << (j ^ 2))) == 0) {
-  //             ok = false;
-  //             break;
-  //           }
-  //         }
-  //       } else {
-  //         if (tiles[nr][nc] > 0 && (tiles[nr][nc] & (1 << (j ^ 2)))) {
-  //           ok = false;
-  //           break;
-  //         }
-  //       }
-  //     }
-  //     if (ok) {
-  //       cands.push_back(i);
-  //     }
-  //   }
-  //   if (cands.empty()) return false;
-  //   randomize(cands);
-  //   vi nds;
-  //   for (int nt : cands) {
-  //     nds.clear();
-  //     count[nt]--;
-  //     for (int i = 0; i < 4; ++i) {
-  //       if ((nt & (1 << i)) && tiles[r + DR[i]][c + DC[i]] == YET) {
-  //         tiles[r + DR[i]][c + DC[i]] = WAITING;
-  //         nds.push_back(i);
-  //       }
-  //     }
-  //     if (nds.empty()) return true;
-  //     randomize(nds);
-  //     for (int nd : nds) {
-
-  //     }
-  //     count[nt]++;
-  //   }
-  // }
 };
 
 struct State {
@@ -927,6 +878,88 @@ struct PuzzleSolver {
     }
   }
 
+  void solve_ccw(int level) {
+    for (int i = N - 1; i >= level + 2; --i) {
+      convey(level, level, i, target[level][i]);
+      protect[level][i] = true;
+    }
+    if (tiles[level][level + 1] == target[level][level + 1] && tiles[level][level] == target[level][level]) {
+      // ok
+      protect[level][level + 1] = true;
+      protect[level][level] = true;
+    } else {
+      convey(level, level, level + 1, target[level][level]);
+      protect[level][level + 1] = true;
+      if (er == level && ec == level) {
+        step(DOWN);
+      }
+      if (tiles[level][level] == target[level][level + 1]) {
+        move_to(level + 1, level + 1);
+        step(UP);
+        step(RIGHT);
+        step(DOWN);
+        step(DOWN);
+        step(LEFT);
+        step(LEFT);
+        step(UP);
+        step(RIGHT);
+        step(RIGHT);
+        step(UP);
+        step(LEFT);
+        step(LEFT);
+        step(DOWN);
+      } else {
+        convey(level, level + 1, level + 1, target[level][level + 1]);
+        protect[level + 1][level + 1] = true;
+        move_to(level, level);
+        protect[level + 1][level + 1] = false;
+        step(RIGHT);
+        step(DOWN);
+      }
+      protect[level][level] = true;
+    }
+
+    for (int i = level + 1; i < N - 2; ++i) {
+      convey(level, i, level, target[i][level]);
+      protect[i][level] = true;
+    }
+    if (tiles[N - 2][level] == target[N - 2][level] && tiles[N - 1][level] == target[N - 1][level]) {
+      // ok
+      protect[N - 2][level] = true;
+      protect[N - 1][level] = true;
+    } else {
+      convey(level, N - 2, level, target[N - 1][level]);
+      protect[N - 2][level] = true;
+      if (er == N - 1 && ec == level) {
+        step(RIGHT);
+      }
+      if (tiles[N - 1][level] == target[N - 2][level]) {
+        move_to(N - 2, level + 1);
+        step(LEFT);
+        step(UP);
+        step(RIGHT);
+        step(RIGHT);
+        step(DOWN);
+        step(DOWN);
+        step(LEFT);
+        step(UP);
+        step(UP);
+        step(LEFT);
+        step(DOWN);
+        step(DOWN);
+        step(RIGHT);
+      } else {
+        convey(level, N - 2, level + 1, target[N - 2][level]);
+        protect[N - 2][level + 1] = true;
+        move_to(N - 1, level);
+        protect[N - 2][level + 1] = false;
+        step(UP);
+        step(RIGHT);
+      }
+      protect[N - 1][level] = true;
+    }
+  }
+
   bool solve_whole(int size) {
     uint64_t target_state = 0ull;
     uint64_t initial_state = 0ull;
@@ -999,7 +1032,13 @@ FOUND:
 
   vi solve(bool& success) {
     for (int level = 0; level < N - 3; ++level) {
-      solve_cw(level);
+      int dist_bl = abs(N - 1 - er) + ec;
+      int dist_tr = er + abs(N - 1 - ec);
+      if (dist_bl < dist_tr) {
+        solve_cw(level);
+      } else {
+        solve_ccw(level);
+      }
     }
     success = solve_whole(3);
     return ans;
@@ -1311,10 +1350,13 @@ struct Solver {
   }
 
   vi solve_one(bool& success) {
+    debugStr("solve_one\n");
     TreePlacer tree_placer;
     vvi target_tiles = tree_placer.find();
     if (target_tiles.empty()) {
-      exit(1);
+      debugStr("faile to find target tree\n");
+      success = false;
+      return vi();
     }
 
     // remove sentinel
