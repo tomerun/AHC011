@@ -1530,9 +1530,25 @@ struct Solver {
   }
 };
 
+void rot_orig_tiles() {
+  vvi orig_tiles_tmp(N, vi(N, 0));
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
+      int t = orig_tiles[N - 1 - j][i];
+      t = (t << 1) | (t >> 3);
+      orig_tiles_tmp[i][j] = t & 0xF;
+    }
+  }
+  for (int i = 0; i < N; ++i) {
+    copy(orig_tiles_tmp[i].begin(), orig_tiles_tmp[i].end(), orig_tiles[i].begin());
+  }
+}
+
 int main() {
   start_time = get_time();
   scanf("%d %d", &N, &T);
+  int er = 0;
+  int ec = 0;
   for (int i = 0; i < N; ++i) {
     char row[11];
     scanf("%s", row);
@@ -1541,11 +1557,30 @@ int main() {
       int t = ('0' <= tile && tile <= '9') ? (tile - '0') : (tile - 'a' + 10);
       orig_tiles[i][j] = t;
       cell_hash[i][j] = ((uint64_t)rnd.nextUInt() << 32) | rnd.nextUInt();
+      if (t == 0) {
+        er = i;
+        ec = j;
+      }
     }
+  }
+  int dist_tl = er + ec;
+  int dist_tr = er + (N - 1 - ec);
+  int dist_bl = (N - 1 - er) + ec;
+  int dist_br = (N - 1 - er) + (N - 1 - ec);
+  int dist_min = min({dist_tl, dist_tr, dist_bl, dist_br});
+  bool rot = dist_min != dist_tr && dist_min != dist_bl;
+  if (rot) {
+    debugStr("rot\n");
+    rot_orig_tiles();
   }
 
   auto solver = unique_ptr<Solver>(new Solver());
   Result res = solver->solve();
+  if (rot) {
+    for (int i = 0; i < res.moves.size(); ++i) {
+      res.moves[i] = (res.moves[i] + 3) & 3;
+    }
+  }
   for (int m : res.moves) {
     printf("%c", DIR_CHARS[m]);
   }
@@ -1553,6 +1588,11 @@ int main() {
   fflush(stdout);
   PRINT_TIMER();
 #ifdef LOCAL
+  if (rot) {
+    rot_orig_tiles();
+    rot_orig_tiles();
+    rot_orig_tiles();
+  }
   int verify_score = verify(res.moves);
   debug("verify score=%d\n", verify_score);
   debug("score=%d\n", res.score());
