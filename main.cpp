@@ -44,14 +44,14 @@ constexpr double CLOCK_PER_SEC = 2.5e9;
 constexpr ll TL = 2000;
 #endif
 
-ll start_time; // msec
-
 inline ll get_time() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   ll result =  tv.tv_sec * 1000LL + tv.tv_usec / 1000LL;
   return result;
 }
+
+const ll start_time = get_time(); // msec
 
 inline ll get_elapsed_msec() {
   return get_time() - start_time;
@@ -479,8 +479,8 @@ struct TreePlacer {
     for (int i = 1; i <= 15; ++i) {
       cur_diff += abs(orig_count[i] - count[i]);
     }
-    const double initial_cooler_log = log(0.5);
-    const double final_cooler_log = log(5.0);
+    const double initial_cooler_log = log(2.0);
+    const double final_cooler_log = log(3.0);
     double cooler = 1.0;
     const int max_turn = 100000;
     vi cand_dir;
@@ -521,6 +521,7 @@ struct TreePlacer {
       bfs_cnt[cr][cc] = bfs_counter;
       int qi = 0;
       // debug("bfs cr:%d cc:%d nr:%d nc:%d\n", cr, cc, nr, nc);
+      // TODO: bidirectional search
       while (true) {
         int r0 = bfs_que[qi] >> 8;
         int c0 = bfs_que[qi] & 0xFF;
@@ -604,7 +605,239 @@ array<array<uint64_t, 10>, 10> cell_hash;
 constexpr int BEAM_SIZE = 100;
 array<array<History, BEAM_SIZE>, 2000> beam_history;
 
+array<array<int, 16>, 16> manhattan;
+
+// struct FifteenSolver {
+//   // A-star with manhattan distance
+
+//   struct Pack {
+//     uint64_t tiles;
+//     int8_t er;
+//     int8_t ec;
+//     int8_t back_move;
+//   };
+
+//   array<array<unordered_map<uint64_t, int8_t>, 4>, 4> finish_states;
+
+//   FifteenSolver() {
+//     START_TIMER(5);
+//     uint64_t finish_state = 0ull;
+//     for (int i = 15; i >= 0; --i) {
+//       finish_state <<= 4;
+//       finish_state |= i;
+//     }
+//     finish_states[0][0][finish_state] = -1;
+//     vector<Pack> que;
+//     que.push_back({finish_state, 0, 0, -1});
+//     for (int i = 0; i < 16; ++i) {
+//       debug("i:%d size:%lu\n", i, que.size());
+//       vector<Pack> next_que;
+//       for (Pack& p : que) {
+//         for (int8_t dir = 0; dir < 4; ++dir) {
+//           if (dir == p.back_move) continue;
+//           int8_t nr = p.er + DR[dir];
+//           int8_t nc = p.ec + DC[dir];
+//           if (nr < 0 || 3 < nr || nc < 0 || 3 < nc) continue;
+//           int base_pos = (p.er * 4 + p.ec) * 4;
+//           int next_pos = (nr * 4 + nc) * 4;
+//           uint64_t tile = p.tiles & (0xFull << next_pos);
+//           uint64_t next_tiles = (p.tiles ^ tile) | ((tile >> next_pos) << base_pos);
+//           if (finish_states[nr][nc].count(next_tiles)) continue;
+//           finish_states[nr][nc][next_tiles] = dir ^ 2;
+//           next_que.push_back({next_tiles, nr, nc, (int8_t)(dir ^ 2)});
+//         }
+//       }
+//       swap(que, next_que);
+//     }
+//     STOP_TIMER(5);
+//   }
+
+//   vi solve(const vvi& initial_tiles, const vvi& target_tiles) {
+//     debugStr("solve\n");
+//     uint64_t initial_state = convert_state(initial_tiles, target_tiles);
+//     debug("initial_state:%llx\n", initial_state);
+//     array<vector<Pack>, 400> pqs;
+//     int pena = 0;
+//     int8_t er = 0;
+//     int8_t ec = 0;
+//     for (int i = 0; i < 16; ++i) {
+//       int tile = (initial_state >> (i * 4)) & 0xF;
+//       if (tile == 0) {
+//         er = i >> 2;
+//         ec = i & 3;
+//       } else {
+//         pena += manhattan[i][tile];
+//       }
+//     }
+//     pqs[pena].push_back({initial_state, er, ec, -1});
+//     array<array<unordered_map<uint64_t, int8_t>, 4>, 4> visited_states;
+//     visited_states[er][ec][initial_state] = -1;
+//     int cur_pena = pena;
+//     uint64_t found_tiles = 0ull;
+//     for (int turn = 0; turn < 100000 && found_tiles == 0; ++turn) {
+//       while (pqs[cur_pena].empty()) {
+//         cur_pena++;
+//       }
+//       Pack pack = pqs[cur_pena].back();
+//       pqs[cur_pena].pop_back();
+//       int cost = 0;
+//       for (int i = 0; i < 16; ++i) {
+//         int tile = (pack.tiles >> (i * 4)) & 0xF;
+//         if (tile != 0) {
+//           cost += manhattan[tile][i];
+//         }
+//       }
+//       debug("turn:%d cur_pena:%d manhattan:%d\n", turn, cur_pena, cost);
+//       // debug("%d %d %d\n", pack.er, pack.ec, pack.back_move);
+//       if (cost < 7) {
+//       for (int i = 0; i < 4; ++i) {
+//         for (int j = 0; j < 4; ++j) {
+//           debug("%x ", (pack.tiles >> ((i * 4 + j) * 4)) & 0xF);
+//         }
+//         debugln();
+//       }
+//       debugln();
+//       }
+//       for (int dir = 0; dir < 4; ++dir) {
+//         if (dir == pack.back_move) continue;
+//         int8_t nr = pack.er + DR[dir];
+//         int8_t nc = pack.ec + DC[dir];
+//         if (nr < 0 || 3 < nr || nc < 0 || 3 < nc) continue;
+//         int base_pos = (pack.er * 4 + pack.ec) * 4;
+//         int next_pos = (nr * 4 + nc) * 4;
+//         uint64_t tile = (pack.tiles >> next_pos) & 0xFull;
+//         assert(tile != 0);
+//         uint64_t next_tiles = (pack.tiles ^ (tile << next_pos)) | (tile << base_pos);
+//         if (visited_states[nr][nc].count(next_tiles)) continue;
+//         visited_states[nr][nc][next_tiles] = dir ^ 2;
+//         if (finish_states[nr][nc].count(next_tiles)) {
+//           found_tiles = next_tiles;
+//           break;
+//         }
+//         int next_pena = cur_pena + 1;
+//         next_pena -= manhattan[tile][nr * 4 + nc];
+//         next_pena += manhattan[tile][pack.er * 4 + pack.ec];
+//         // next_pena -= manhattan[0][pack.er * 4 + pack.ec];
+//         // next_pena += manhattan[0][nr * 4 + nc];
+//         pqs[next_pena].push_back({next_tiles, nr, nc, (int8_t)(dir ^ 2)});
+//         if (next_pena < cur_pena) {
+//           cur_pena = next_pena;
+//         }
+//       }
+//     }
+//     if (found_tiles != 0) {
+//       vi ans;
+//       for (int i = 0; i < 16; ++i) {
+//         if (((found_tiles >> (i * 4)) & 0xF) == 0) {
+//           er = i >> 2;
+//           ec = i & 3;
+//           break;
+//         }
+//       }
+//       int cr = er;
+//       int cc = ec;
+//       uint64_t tiles = found_tiles;
+//       while (tiles != initial_state) {
+//         int dir = visited_states[cr][cc][tiles];
+//         int nr = cr + DR[dir];
+//         int nc = cc + DC[dir];
+//         int base_pos = (cr * 4 + cc) * 4;
+//         int next_pos = (nr * 4 + nc) * 4;
+//         uint64_t tile = tiles & (0xFull << next_pos);
+//         assert(tile != 0);
+//         tiles = (tiles ^ tile) | ((tile >> next_pos) << base_pos);
+//         cr = nr;
+//         cc = nc;
+//         ans.push_back(dir ^ 2);
+//       }
+//       reverse(ans.begin(), ans.end());
+
+//       cr = er;
+//       cc = ec;
+//       tiles = found_tiles;
+//       while (true) {
+//         int dir = finish_states[cr][cc][tiles];
+//         if (dir == -1) break;
+//         int nr = cr + DR[dir];
+//         int nc = cc + DC[dir];
+//         int base_pos = (cr * 4 + cc) * 4;
+//         int next_pos = (nr * 4 + nc) * 4;
+//         uint64_t tile = tiles & (0xFull << next_pos);
+//         assert(tile != 0);
+//         tiles = (tiles ^ tile) | ((tile >> next_pos) << base_pos);
+//         cr = nr;
+//         cc = nc;
+//         ans.push_back(dir);
+//       }
+
+//       for (int i = 0; i < ans.size(); ++i) {
+//         ans[i] ^= 2;
+//       }
+//       return ans;
+//     } else {
+//       return vi(1, -1);
+//     }
+//   }
+
+//   uint64_t convert_state(const vvi& initial_tiles, const vvi& target_tiles) const {
+//     vector<bool> visited(16, false);
+//     vi mapping;
+//     uint64_t initial_state = 0ull;
+//     for (int i = 0; i < 4; ++i) {
+//       for (int j = 0; j < 4; ++j) {
+//         bool found = false;
+//         for (int k = 0; k < 4 && !found; ++k) {
+//           for (int l = 0; l < 4; ++l) {
+//             if (initial_tiles[N - 4 + i][N - 4 + j] == target_tiles[N - 4 + k][N - 4 + l] && !visited[(k << 2) | l]) {
+//               mapping.push_back(((3 - k) << 2) | l);
+//               // initial_state |= ((uint64_t)(((3 - k) << 2) | (3 - l))) << ((((3 - i) << 2) | (3 - j)) * 4);
+//               visited[(k << 2) | l] = true;
+//               found = true;
+//               break;
+//             }
+//           }
+//         }
+//       }
+//     }
+//     int parity = 0;
+//     vi mapping_tmp = mapping;
+//     for (int i = 0; i < 16; ++i) {
+//       if (mapping_tmp[i] == 0) parity += (i >> 2) + (i & 3);
+//     }
+//     vector<bool> visited_tmp(16, false);
+//     for (int i = 0; i < 16; ++i) {
+//       if (visited_tmp[i]) continue;
+//       int next = mapping_tmp[i];
+//       visited_tmp[i] = true;
+//       while (next != i) {
+//         parity++;
+//         swap(mapping_tmp[i], mapping_tmp[next]);
+//         next = mapping_tmp[i];
+//         visited_tmp[next] = true;
+//       }
+//     }
+//     if (parity & 1) {
+//       bool found = false;
+//       for (int i = 0; i < 16 && !found; ++i) {
+//         for (int j = 0; j < i; ++j) {
+//           if (initial_tiles[i >> 2][i & 3] == initial_tiles[j >> 2][j & 3]) {
+//             swap(mapping[i], mapping[j]);
+//             found = true;
+//             break;
+//           }
+//         }
+//       }
+//     }
+//     for (int i = 0; i < 16; ++i) {
+//       initial_state |= (uint64_t)mapping[i] << (i * 4);
+//     }
+//     return initial_state;
+//   }
+
+// } fifteen_solver;
+
 struct PuzzleSolver {
+  // rule base + exhaustive search for final 3x3 area
   vvi tiles;
   vvi target;
   vi ans;
@@ -1117,6 +1350,18 @@ FOUND:
   vi solve(bool& success, int best_len) {
     START_TIMER(1);
     for (int level = 0; level < N - 3; ++level) {
+      // if (level == N - 4) {
+      //   START_TIMER(10);
+      //   vi last_ans = fifteen_solver.solve(tiles, target);
+      //   STOP_TIMER(10);
+      //   if (!(last_ans.size() == 1 && last_ans[0] == -1)) {
+      //     debug("success_fifteen_solver:%lu\n", last_ans.size());
+      //     ans.insert(ans.end(), last_ans.begin(), last_ans.end());
+      //     success = true;
+      //     STOP_TIMER(1);
+      //     return ans;
+      //   }
+      // }
       int dist_bl = abs(N - 1 - er) + ec;
       int dist_tr = er + abs(N - 1 - ec);
       if (dist_bl < dist_tr) {
@@ -1427,7 +1672,7 @@ struct Solver {
   }
 
   Result solve() {
-    vi best_ans(T + 1, 0);
+    vi best_ans(T * 75 / 100, 0);
     int turn = 0;
     uint64_t worst_time = 0;
     uint64_t before_time = get_elapsed_msec();
@@ -1545,7 +1790,11 @@ void rot_orig_tiles() {
 }
 
 int main() {
-  start_time = get_time();
+  for (int i = 0; i < 16; ++i) {
+    for (int j = 0; j < 16; ++j) {
+      manhattan[i][j] = abs((i >> 2) - (j >> 2)) + abs((i & 3) - (j & 3));
+    }
+  }
   scanf("%d %d", &N, &T);
   int er = 0;
   int ec = 0;
