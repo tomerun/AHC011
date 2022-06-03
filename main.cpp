@@ -269,7 +269,7 @@ void randomize(vector<T>& v) {
 }
 
 template<class T>
-void print_tiles(const T& tiles, bool with_sentinel) {
+void print_tiles(const T& tiles, bool with_sentinel = false) {
 #ifdef DEBUG
   int base = with_sentinel ? 1 : 0;
   for (int i = base; i < base + N; ++i) {
@@ -279,6 +279,121 @@ void print_tiles(const T& tiles, bool with_sentinel) {
     debugln();
   }
 #endif
+}
+
+constexpr int EMBED_SIZE = 8;
+array<array<int, 1 << (3 * 6)>, EMBED_SIZE - 1> embed_pattern;
+
+inline int pack_embed_pos(int sr, int sc, int tr0, int tc0, int tr1, int tc1) {
+  return (sr << 15) | (sc << 12) | (tr0 << 9) | (tc0 << 6) | (tr1 << 3) | tc1;
+}
+
+void precalc_pattern() {
+  for (int i = 0; i <= EMBED_SIZE - 2; ++i) {
+    auto& pat = embed_pattern[i];
+    fill(pat.begin(), pat.end(), -1);
+    vi cur_que = {
+      pack_embed_pos(i, 1, i, 0, i + 1, 0),
+      pack_embed_pos(i + 1, 1, i, 0, i + 1, 0)
+    };
+    if (i != 0) {
+      cur_que.push_back(pack_embed_pos(i - 1, 0, i, 0, i + 1, 0));
+    }
+    for (int p : cur_que) {
+      pat[p] = 0;
+    }
+    vi dirs = {0, 1, 3, 2};
+    for (int dist = 1; !cur_que.empty(); ++dist) {
+      // debug("dist:%d que_size:%lu\n", dist, cur_que.size());
+      vi next_que;
+      for (int p : cur_que) {
+        int sr = p >> 15;
+        int sc = (p >> 12) & 7;
+        int tr0 = (p >> 9) & 7;
+        int tc0 = (p >> 6) & 7;
+        int tr1 = (p >> 3) & 7;
+        int tc1 = (p >> 0) & 7;
+        for (int dir : dirs) {
+          int nr = sr + DR[dir];
+          int nc = sc + DC[dir];
+          if (nr < 0 || EMBED_SIZE <= nr || nc < 0 || EMBED_SIZE <= nc) continue;
+          if (nc == 0 && nr > i + 1) continue;
+          int ntr0, ntc0, ntr1, ntc1;
+          if (nr == tr0 && nc == tc0) {
+            ntr0 = sr;
+            ntc0 = sc;
+          } else {
+            ntr0 = tr0;
+            ntc0 = tc0;
+          }
+          if (nr == tr1 && nc == tc1) {
+            ntr1 = sr;
+            ntc1 = sc;
+          } else {
+            ntr1 = tr1;
+            ntc1 = tc1;
+          }
+          int np = pack_embed_pos(nr, nc, ntr0, ntc0, ntr1, ntc1);
+          if (pat[np] == -1) {
+            pat[np] = (dist << 2) | dir;
+            next_que.push_back(np);
+          }
+        }
+      }
+      swap(cur_que, next_que);
+    }
+    // verify
+    // for (int l = 0; l < 10000; ++l) {
+    //   int sr = rnd.nextUInt(EMBED_SIZE);
+    //   int sc = rnd.nextUInt(EMBED_SIZE - 1) + 1;
+    //   int tr0 = rnd.nextUInt(EMBED_SIZE);
+    //   int tc0 = rnd.nextUInt(EMBED_SIZE - 1) + 1;
+    //   while (tr0 == sr && tc0 == sc) {
+    //     tr0 = rnd.nextUInt(EMBED_SIZE);
+    //     tc0 = rnd.nextUInt(EMBED_SIZE - 1) + 1;
+    //   }
+    //   int tr1 = rnd.nextUInt(EMBED_SIZE);
+    //   int tc1 = rnd.nextUInt(EMBED_SIZE - 1) + 1;
+    //   while ((tr1 == sr && tc1 == sc) || (tr1 == tr0 && tc1 == tc0)) {
+    //     tr1 = rnd.nextUInt(EMBED_SIZE);
+    //     tc1 = rnd.nextUInt(EMBED_SIZE - 1) + 1;
+    //   }
+    //   int ini_max_r = max({2, i + 1, sr, tr0, tr1});
+    //   int ini_max_c = max({3, sc, tc0, tc1});
+    //   int p = pack_embed_pos(sr, sc, tr0, tc0, tr1, tc1);
+    //   int len = pat[p] >> 2;
+    //   int max_r = 0;
+    //   int max_c = 0;
+    //   // debugln();
+    //   debug("%d %d %d %d %d %d\n", sr, sc, tr0, tc0, tr1, tc1);
+    //   while (true) {
+    //     max_r = max(max_r, sr);
+    //     max_c = max(max_c, sc);
+    //     if ((pat[p] >> 2) == 0) {
+    //       assert(len == 0);
+    //       if (max_r > ini_max_r) {
+    //         debug("max_r %d %d\n", max_r, ini_max_r);
+    //       }
+    //       if (max_c > ini_max_c) {
+    //         debug("max_c %d %d\n", max_c, ini_max_c);
+    //       }
+    //       break;
+    //     }
+    //     int dir = pat[p] & 3;
+    //     sr -= DR[dir];
+    //     sc -= DC[dir];
+    //     if (sr == tr0 && sc == tc0) {
+    //       tr0 += DR[dir];
+    //       tc0 += DC[dir];
+    //     } else if (sr == tr1 && sc == tc1) {
+    //       tr1 += DR[dir];
+    //       tc1 += DC[dir];
+    //     }
+    //     len--;
+    //     p = pack_embed_pos(sr, sc, tr0, tc0, tr1, tc1);
+    //   }
+    // }
+  }
 }
 
 // maximize
@@ -604,237 +719,7 @@ struct History {
 array<array<uint64_t, 10>, 10> cell_hash;
 constexpr int BEAM_SIZE = 100;
 array<array<History, BEAM_SIZE>, 2000> beam_history;
-
 array<array<int, 16>, 16> manhattan;
-
-// struct FifteenSolver {
-//   // A-star with manhattan distance
-
-//   struct Pack {
-//     uint64_t tiles;
-//     int8_t er;
-//     int8_t ec;
-//     int8_t back_move;
-//   };
-
-//   array<array<unordered_map<uint64_t, int8_t>, 4>, 4> finish_states;
-
-//   FifteenSolver() {
-//     START_TIMER(5);
-//     uint64_t finish_state = 0ull;
-//     for (int i = 15; i >= 0; --i) {
-//       finish_state <<= 4;
-//       finish_state |= i;
-//     }
-//     finish_states[0][0][finish_state] = -1;
-//     vector<Pack> que;
-//     que.push_back({finish_state, 0, 0, -1});
-//     for (int i = 0; i < 16; ++i) {
-//       debug("i:%d size:%lu\n", i, que.size());
-//       vector<Pack> next_que;
-//       for (Pack& p : que) {
-//         for (int8_t dir = 0; dir < 4; ++dir) {
-//           if (dir == p.back_move) continue;
-//           int8_t nr = p.er + DR[dir];
-//           int8_t nc = p.ec + DC[dir];
-//           if (nr < 0 || 3 < nr || nc < 0 || 3 < nc) continue;
-//           int base_pos = (p.er * 4 + p.ec) * 4;
-//           int next_pos = (nr * 4 + nc) * 4;
-//           uint64_t tile = p.tiles & (0xFull << next_pos);
-//           uint64_t next_tiles = (p.tiles ^ tile) | ((tile >> next_pos) << base_pos);
-//           if (finish_states[nr][nc].count(next_tiles)) continue;
-//           finish_states[nr][nc][next_tiles] = dir ^ 2;
-//           next_que.push_back({next_tiles, nr, nc, (int8_t)(dir ^ 2)});
-//         }
-//       }
-//       swap(que, next_que);
-//     }
-//     STOP_TIMER(5);
-//   }
-
-//   vi solve(const vvi& initial_tiles, const vvi& target_tiles) {
-//     debugStr("solve\n");
-//     uint64_t initial_state = convert_state(initial_tiles, target_tiles);
-//     debug("initial_state:%llx\n", initial_state);
-//     array<vector<Pack>, 400> pqs;
-//     int pena = 0;
-//     int8_t er = 0;
-//     int8_t ec = 0;
-//     for (int i = 0; i < 16; ++i) {
-//       int tile = (initial_state >> (i * 4)) & 0xF;
-//       if (tile == 0) {
-//         er = i >> 2;
-//         ec = i & 3;
-//       } else {
-//         pena += manhattan[i][tile];
-//       }
-//     }
-//     pqs[pena].push_back({initial_state, er, ec, -1});
-//     array<array<unordered_map<uint64_t, int8_t>, 4>, 4> visited_states;
-//     visited_states[er][ec][initial_state] = -1;
-//     int cur_pena = pena;
-//     uint64_t found_tiles = 0ull;
-//     for (int turn = 0; turn < 100000 && found_tiles == 0; ++turn) {
-//       while (pqs[cur_pena].empty()) {
-//         cur_pena++;
-//       }
-//       Pack pack = pqs[cur_pena].back();
-//       pqs[cur_pena].pop_back();
-//       int cost = 0;
-//       for (int i = 0; i < 16; ++i) {
-//         int tile = (pack.tiles >> (i * 4)) & 0xF;
-//         if (tile != 0) {
-//           cost += manhattan[tile][i];
-//         }
-//       }
-//       debug("turn:%d cur_pena:%d manhattan:%d\n", turn, cur_pena, cost);
-//       // debug("%d %d %d\n", pack.er, pack.ec, pack.back_move);
-//       if (cost < 7) {
-//       for (int i = 0; i < 4; ++i) {
-//         for (int j = 0; j < 4; ++j) {
-//           debug("%x ", (pack.tiles >> ((i * 4 + j) * 4)) & 0xF);
-//         }
-//         debugln();
-//       }
-//       debugln();
-//       }
-//       for (int dir = 0; dir < 4; ++dir) {
-//         if (dir == pack.back_move) continue;
-//         int8_t nr = pack.er + DR[dir];
-//         int8_t nc = pack.ec + DC[dir];
-//         if (nr < 0 || 3 < nr || nc < 0 || 3 < nc) continue;
-//         int base_pos = (pack.er * 4 + pack.ec) * 4;
-//         int next_pos = (nr * 4 + nc) * 4;
-//         uint64_t tile = (pack.tiles >> next_pos) & 0xFull;
-//         assert(tile != 0);
-//         uint64_t next_tiles = (pack.tiles ^ (tile << next_pos)) | (tile << base_pos);
-//         if (visited_states[nr][nc].count(next_tiles)) continue;
-//         visited_states[nr][nc][next_tiles] = dir ^ 2;
-//         if (finish_states[nr][nc].count(next_tiles)) {
-//           found_tiles = next_tiles;
-//           break;
-//         }
-//         int next_pena = cur_pena + 1;
-//         next_pena -= manhattan[tile][nr * 4 + nc];
-//         next_pena += manhattan[tile][pack.er * 4 + pack.ec];
-//         // next_pena -= manhattan[0][pack.er * 4 + pack.ec];
-//         // next_pena += manhattan[0][nr * 4 + nc];
-//         pqs[next_pena].push_back({next_tiles, nr, nc, (int8_t)(dir ^ 2)});
-//         if (next_pena < cur_pena) {
-//           cur_pena = next_pena;
-//         }
-//       }
-//     }
-//     if (found_tiles != 0) {
-//       vi ans;
-//       for (int i = 0; i < 16; ++i) {
-//         if (((found_tiles >> (i * 4)) & 0xF) == 0) {
-//           er = i >> 2;
-//           ec = i & 3;
-//           break;
-//         }
-//       }
-//       int cr = er;
-//       int cc = ec;
-//       uint64_t tiles = found_tiles;
-//       while (tiles != initial_state) {
-//         int dir = visited_states[cr][cc][tiles];
-//         int nr = cr + DR[dir];
-//         int nc = cc + DC[dir];
-//         int base_pos = (cr * 4 + cc) * 4;
-//         int next_pos = (nr * 4 + nc) * 4;
-//         uint64_t tile = tiles & (0xFull << next_pos);
-//         assert(tile != 0);
-//         tiles = (tiles ^ tile) | ((tile >> next_pos) << base_pos);
-//         cr = nr;
-//         cc = nc;
-//         ans.push_back(dir ^ 2);
-//       }
-//       reverse(ans.begin(), ans.end());
-
-//       cr = er;
-//       cc = ec;
-//       tiles = found_tiles;
-//       while (true) {
-//         int dir = finish_states[cr][cc][tiles];
-//         if (dir == -1) break;
-//         int nr = cr + DR[dir];
-//         int nc = cc + DC[dir];
-//         int base_pos = (cr * 4 + cc) * 4;
-//         int next_pos = (nr * 4 + nc) * 4;
-//         uint64_t tile = tiles & (0xFull << next_pos);
-//         assert(tile != 0);
-//         tiles = (tiles ^ tile) | ((tile >> next_pos) << base_pos);
-//         cr = nr;
-//         cc = nc;
-//         ans.push_back(dir);
-//       }
-
-//       for (int i = 0; i < ans.size(); ++i) {
-//         ans[i] ^= 2;
-//       }
-//       return ans;
-//     } else {
-//       return vi(1, -1);
-//     }
-//   }
-
-//   uint64_t convert_state(const vvi& initial_tiles, const vvi& target_tiles) const {
-//     vector<bool> visited(16, false);
-//     vi mapping;
-//     uint64_t initial_state = 0ull;
-//     for (int i = 0; i < 4; ++i) {
-//       for (int j = 0; j < 4; ++j) {
-//         bool found = false;
-//         for (int k = 0; k < 4 && !found; ++k) {
-//           for (int l = 0; l < 4; ++l) {
-//             if (initial_tiles[N - 4 + i][N - 4 + j] == target_tiles[N - 4 + k][N - 4 + l] && !visited[(k << 2) | l]) {
-//               mapping.push_back(((3 - k) << 2) | l);
-//               // initial_state |= ((uint64_t)(((3 - k) << 2) | (3 - l))) << ((((3 - i) << 2) | (3 - j)) * 4);
-//               visited[(k << 2) | l] = true;
-//               found = true;
-//               break;
-//             }
-//           }
-//         }
-//       }
-//     }
-//     int parity = 0;
-//     vi mapping_tmp = mapping;
-//     for (int i = 0; i < 16; ++i) {
-//       if (mapping_tmp[i] == 0) parity += (i >> 2) + (i & 3);
-//     }
-//     vector<bool> visited_tmp(16, false);
-//     for (int i = 0; i < 16; ++i) {
-//       if (visited_tmp[i]) continue;
-//       int next = mapping_tmp[i];
-//       visited_tmp[i] = true;
-//       while (next != i) {
-//         parity++;
-//         swap(mapping_tmp[i], mapping_tmp[next]);
-//         next = mapping_tmp[i];
-//         visited_tmp[next] = true;
-//       }
-//     }
-//     if (parity & 1) {
-//       bool found = false;
-//       for (int i = 0; i < 16 && !found; ++i) {
-//         for (int j = 0; j < i; ++j) {
-//           if (initial_tiles[i >> 2][i & 3] == initial_tiles[j >> 2][j & 3]) {
-//             swap(mapping[i], mapping[j]);
-//             found = true;
-//             break;
-//           }
-//         }
-//       }
-//     }
-//     for (int i = 0; i < 16; ++i) {
-//       initial_state |= (uint64_t)mapping[i] << (i * 4);
-//     }
-//     return initial_state;
-//   }
-
-// } fifteen_solver;
 
 struct PuzzleSolver {
   // rule base + exhaustive search for final 3x3 area
@@ -1023,54 +908,198 @@ struct PuzzleSolver {
     ec = nc;
   }
 
+  bool recover_pattern(int level, int shift, int sr, int sc, int tr0, int tc0, int tr1, int tc1) {
+    // debug("recover_pattern %d %d\n", level, shift);
+    static vi path;
+    path.clear();
+    const auto& pat = embed_pattern[shift];
+    int p = pack_embed_pos(sr, sc, tr0, tc0, tr1, tc1);
+    while (true) {
+      // debug("%d %d %d %d %d %d\n", sr, sc, tr0, tc0, tr1, tc1);
+      int len = pat[p] >> 2;
+      if (len == 0) break;
+      int dir = pat[p] & 3;
+      sr -= DR[dir];
+      sc -= DC[dir];
+      if (sr + level >= N || sc + level >= N) {
+        for (auto itr = path.rbegin(); itr != path.rend(); ++itr) {
+          step((*itr) ^ 2);
+        }
+        debug("fail %d %d %d %d %lu\n", level, shift, sr, sc, path.size());
+        return false;
+      }
+      if (sr == tr0 && sc == tc0) {
+        tr0 += DR[dir];
+        tc0 += DC[dir];
+      } else if (sr == tr1 && sc == tc1) {
+        tr1 += DR[dir];
+        tc1 += DC[dir];
+      }
+      path.push_back(dir ^ 2);
+      step(dir ^ 2);
+      p = pack_embed_pos(sr, sc, tr0, tc0, tr1, tc1);
+    }
+    return true;
+  }
+
+
   void solve_cw(int level) {
     for (int i = N - 1; i >= level + 2; --i) {
-      convey(level, i, level, target[i][level]);
-      protect[i][level] = true;
+      bool found_pattern = false;
+      if (i > level + 2 && (rnd.nextUInt() & 7)) {
+        int top = max(level, max(i, er) - EMBED_SIZE + 1);
+        int sr = er - top;
+        int sc = ec - level;
+        // debug("i:%d top:%d sr:%d sc:%d\n", i, top, sr, sc);
+        int sp = (sr << 15) | (sc << 12);
+        vi cands0;
+        vi cands1;
+        for (int r = top; r < min(top + EMBED_SIZE, N); ++r) {
+          for (int c = (r <= i ? level : level + 1); c < min(level + EMBED_SIZE, N); ++c) {
+            if (tiles[r][c] == target[i - 1][level]) {
+              cands0.push_back(((r - top) << 3) | (c - level));
+            }
+            if (tiles[r][c] == target[i][level]) {
+              cands1.push_back(((r - top) << 3) | (c - level));
+            }
+          }
+        }
+        const int shift = i - 1 - top;
+        int best_len = INF;
+        int best_st = 0;
+        if (target[i][level] == target[i - 1][level]) {
+          for (int i0 = 0; i0 < cands0.size(); ++i0) {
+            for (int i1 = 0; i1 < cands0.size(); ++i1) {
+              if (i0 == i1) continue;
+              int st = sp | (cands0[i0] << 6) | cands0[i1]; 
+              if (embed_pattern[shift][st] < best_len) {
+                best_len = embed_pattern[shift][st];
+                best_st = st;
+              }
+            }
+          }
+        } else {
+          for (int i0 = 0; i0 < cands0.size(); ++i0) {
+            for (int i1 = 0; i1 < cands1.size(); ++i1) {
+              int st = sp | (cands0[i0] << 6) | cands1[i1]; 
+              if (embed_pattern[shift][st] < best_len) {
+                best_len = embed_pattern[shift][st];
+                best_st = st;
+              }
+            }
+          }
+        }
+        if (best_len != INF) {
+          found_pattern = recover_pattern(level, shift, sr, sc, (best_st >> 9) & 7, (best_st >> 6) & 7, (best_st >> 3) & 7, (best_st >> 0) & 7);
+        }
+      }
+      if (found_pattern) {
+        assert(tiles[i][level] == target[i][level]);
+        assert(tiles[i - 1][level] == target[i - 1][level]);
+        protect[i][level] = true;
+        protect[i - 1][level] = true;
+        --i;
+      } else {
+        convey(level, i, level, target[i][level]);
+        protect[i][level] = true;
+      }
     }
-    if (tiles[level + 1][level] == target[level + 1][level] && tiles[level][level] == target[level][level]) {
-      // ok
+    bool found_pattern = false;
+    {
+      int sr = er - level;
+      int sc = ec - level;
+      int sp = (sr << 15) | (sc << 12);
+      vi cands0;
+      vi cands1;
+      for (int i = level; i < min(level + EMBED_SIZE, N); ++i) {
+        for (int j = (i < level + 2 ? level : level + 1); j < min(level + EMBED_SIZE, N); ++j) {
+          if (tiles[i][j] == target[level][level]) {
+            cands0.push_back(((i - level) << 3) | (j - level));
+          }
+          if (tiles[i][j] == target[level + 1][level]) {
+            cands1.push_back(((i - level) << 3) | (j - level));
+          }
+        }
+      }
+      int best_len = INF;
+      int best_st = 0;
+      if (target[level][level] == target[level + 1][level]) {
+        for (int i = 0; i < cands0.size(); ++i) {
+          for (int j = 0; j < cands0.size(); ++j) {
+            if (i == j) continue;
+            int st = sp | (cands0[i] << 6) | cands0[j]; 
+            if (embed_pattern[0][st] < best_len) {
+              best_len = embed_pattern[0][st];
+              best_st = st;
+            }
+          }
+        }
+      } else {
+        for (int i = 0; i < cands0.size(); ++i) {
+          for (int j = 0; j < cands1.size(); ++j) {
+            int st = sp | (cands0[i] << 6) | cands1[j]; 
+            if (embed_pattern[0][st] < best_len) {
+              best_len = embed_pattern[0][st];
+              best_st = st;
+            }
+          }
+        }
+      }
+      if (best_len != INF) {
+        found_pattern = recover_pattern(level, 0, sr, sc, (best_st >> 9) & 7, (best_st >> 6) & 7, (best_st >> 3) & 7, (best_st >> 0) & 7);
+      }
+    }
+
+    if (found_pattern) {
+      assert(tiles[level][level] == target[level][level]);
+      assert(tiles[level + 1][level] == target[level + 1][level]);
       protect[level + 1][level] = true;
       protect[level][level] = true;
     } else {
-      convey(level, level + 1, level, target[level][level]);
-      protect[level + 1][level] = true;
-      bool skip = false;
-      if (er == level && ec == level) {
-        if (tiles[level + 1][level + 1] == target[level + 1][level]) {
-          step(DOWN);
-          step(RIGHT);
-          skip = true;
-        } else {
-          step(RIGHT);
+      if (tiles[level + 1][level] == target[level + 1][level] && tiles[level][level] == target[level][level]) {
+        // ok
+        protect[level + 1][level] = true;
+        protect[level][level] = true;
+      } else {
+        convey(level, level + 1, level, target[level][level]);
+        protect[level + 1][level] = true;
+        bool skip = false;
+        if (er == level && ec == level) {
+          if (tiles[level + 1][level + 1] == target[level + 1][level]) {
+            step(DOWN);
+            step(RIGHT);
+            skip = true;
+          } else {
+            step(RIGHT);
+          }
         }
-      }
-      if (!skip) {
-        if (tiles[level][level] == target[level + 1][level]) {
-          move_to(level + 1, level + 1);
-          step(LEFT);
-          step(DOWN);
-          step(RIGHT);
-          step(RIGHT);
-          step(UP);
-          step(UP);
-          step(LEFT);
-          step(DOWN);
-          step(DOWN);
-          step(LEFT);
-          step(UP);
-          step(UP);
-          step(RIGHT);
-        } else {
-          convey(level, level + 1, level + 1, target[level + 1][level]);
-          protect[level + 1][level + 1] = true;
-          move_to(level, level);
-          protect[level + 1][level + 1] = false;
-          step(DOWN);
-          step(RIGHT);
+        if (!skip) {
+          if (tiles[level][level] == target[level + 1][level]) {
+            move_to(level + 1, level + 1);
+            step(LEFT);
+            step(DOWN);
+            step(RIGHT);
+            step(RIGHT);
+            step(UP);
+            step(UP);
+            step(LEFT);
+            step(DOWN);
+            step(DOWN);
+            step(LEFT);
+            step(UP);
+            step(UP);
+            step(RIGHT);
+          } else {
+            convey(level, level + 1, level + 1, target[level + 1][level]);
+            protect[level + 1][level + 1] = true;
+            move_to(level, level);
+            protect[level + 1][level + 1] = false;
+            step(DOWN);
+            step(RIGHT);
+          }
         }
+        protect[level][level] = true;
       }
-      protect[level][level] = true;
     }
 
     for (int i = level + 1; i < N - 2; ++i) {
@@ -1350,18 +1379,6 @@ FOUND:
   vi solve(bool& success, int best_len) {
     START_TIMER(1);
     for (int level = 0; level < N - 3; ++level) {
-      // if (level == N - 4) {
-      //   START_TIMER(10);
-      //   vi last_ans = fifteen_solver.solve(tiles, target);
-      //   STOP_TIMER(10);
-      //   if (!(last_ans.size() == 1 && last_ans[0] == -1)) {
-      //     debug("success_fifteen_solver:%lu\n", last_ans.size());
-      //     ans.insert(ans.end(), last_ans.begin(), last_ans.end());
-      //     success = true;
-      //     STOP_TIMER(1);
-      //     return ans;
-      //   }
-      // }
       int dist_bl = abs(N - 1 - er) + ec;
       int dist_tr = er + abs(N - 1 - ec);
       if (dist_bl < dist_tr) {
@@ -1379,279 +1396,6 @@ FOUND:
     success = solve_whole(3, best_len);
     STOP_TIMER(2);
     return ans;
-  }
-};
-
-struct SlidingBlockPuzzle {
-  vvi tiles;
-  SlidingBlockPuzzle(vvi tiles_) : tiles(tiles_) {}
-
-  vi solve_line(vvi initial_tiles, int line) {
-    int initial_pena = 0;
-    uint64_t initial_hash = 0ull;
-    unordered_set<uint64_t> visited_states;
-    int sr = 0;
-    int sc = 0;
-    for (int i = line; i < N; ++i) {
-      for (int j = line; j < N; ++j) {
-        if (initial_tiles[i][j] == (((N - 1) << 8) | (N - 1))) {
-          sr = i;
-          sc = j;
-        } else {
-          int tr = initial_tiles[i][j] >> 8;
-          int tc = initial_tiles[i][j] & 0xFF;
-          if (tr == line || tc == line) {
-            initial_pena += sq(abs(tr - i) + abs(tc - j));
-          }
-        }
-        initial_hash ^= cell_hash[i][j] * initial_tiles[i][j];
-      }
-    }
-    if (initial_pena == 0) return vi();
-    visited_states.insert(initial_hash);
-    State initial_state = {initial_tiles, initial_pena, sr, sc, -1, initial_hash};
-    vector<State> cur_states = {initial_state};
-    int turn = 0;
-    for (; turn < T; ++turn) {
-      debug("turn:%d\n", turn);
-      vector<SingleMove> moves;
-      for (int i = 0; i < cur_states.size(); ++i) {
-        const State& cur_state = cur_states[i];
-        // debug("er:%d ec:%d back_move:%d\n", cur_state.er, cur_state.ec, cur_state.back_move);
-        for (int dir = 0; dir < 4; ++dir) {
-          if (dir == cur_state.back_move) continue;
-          int nr = cur_state.er + DR[dir];
-          int nc = cur_state.ec + DC[dir];
-          if (nr < line || N <= nr || nc < line || N <= nc) continue;
-          int tr = cur_state.tiles[nr][nc] >> 8;
-          int tc = cur_state.tiles[nr][nc] & 0xFF;
-          uint64_t new_hash = cur_state.hash;
-          new_hash ^= cur_state.tiles[cur_state.er][cur_state.ec] * cell_hash[cur_state.er][cur_state.ec];
-          new_hash ^= cur_state.tiles[nr][nc] * cell_hash[nr][nc];
-          new_hash ^= cur_state.tiles[cur_state.er][cur_state.ec] * cell_hash[nr][nc];
-          new_hash ^= cur_state.tiles[nr][nc] * cell_hash[cur_state.er][cur_state.ec];
-          if (visited_states.count(new_hash) != 0) {
-            continue;
-          }
-          int diff = 0;
-          if (tr == line || tc == line) {
-            diff = sq(abs(tr - cur_state.er) + abs(tc - cur_state.ec)) - sq(abs(tr - nr) + abs(tc - nc));
-          }
-          int move_pena = cur_state.penalty + diff;
-          if (move_pena == 0) {
-            vi ans = {dir};
-            int t = turn - 1;
-            int si = i;
-            while (t >= 0) {
-              ans.push_back(beam_history[t][si].dir);
-              si = beam_history[t][si].prev_idx;
-              --t;
-            }
-            reverse(ans.begin(), ans.end());
-            return ans;
-          }
-          moves.push_back({move_pena, dir, i});
-        }
-      }
-      if (moves.empty()) {
-        debugStr("give up\n");
-        break;
-      }
-      // sort(moves.begin(), moves.end());
-      if (moves.size() > BEAM_SIZE) {
-        nth_element(moves.begin(), moves.begin() + BEAM_SIZE, moves.end());
-      }
-      debug("turn:%d penalty:%d\n", turn, moves[0].penalty);
-      vector<State> next_states;
-      for (int i = 0; i < min((int)moves.size(), BEAM_SIZE); ++i) {
-        const auto& move = moves[i];
-        const State& parent_state = cur_states[move.state_idx];
-        State next_state = {parent_state.tiles, move.penalty, parent_state.er + DR[move.dir], parent_state.ec + DC[move.dir], move.dir ^ 2, 0ull};
-        uint64_t new_hash = parent_state.hash;
-        new_hash ^= parent_state.tiles[parent_state.er][parent_state.ec] * cell_hash[parent_state.er][parent_state.ec];
-        new_hash ^= parent_state.tiles[next_state.er][next_state.ec] * cell_hash[next_state.er][next_state.ec];
-        new_hash ^= parent_state.tiles[parent_state.er][parent_state.ec] * cell_hash[next_state.er][next_state.ec];
-        new_hash ^= parent_state.tiles[next_state.er][next_state.ec] * cell_hash[parent_state.er][parent_state.ec];
-        next_state.hash = new_hash;
-        if (visited_states.count(new_hash) != 0) {
-          continue;
-        }
-        // visited_states.insert(new_hash);
-        swap(next_state.tiles[parent_state.er][parent_state.ec], next_state.tiles[next_state.er][next_state.ec]);
-        next_states.push_back(next_state);
-        beam_history[turn][next_states.size() - 1].prev_idx = move.state_idx;
-        beam_history[turn][next_states.size() - 1].dir = move.dir;
-      }
-      swap(cur_states, next_states);
-    }
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        debug("(%2d %2d) ", cur_states[0].tiles[i][j] >> 8, cur_states[0].tiles[i][j] & 0xFF);
-      }
-      debugln();
-    }
-    return vi();
-    // vi ans;
-    // int t = turn - 1;
-    // int si = 0;
-    // while (t >= 0) {
-    //   ans.push_back(beam_history[t][si].dir);
-    //   si = beam_history[t][si].prev_idx;
-    //   --t;
-    // }
-    // reverse(ans.begin(), ans.end());
-    // return ans;
-  }
-
-  vi solve_whole(vvi initial_tiles, int line) {
-    // bidirectional search?
-    int initial_pena = 0;
-    uint64_t initial_hash = 0ull;
-    unordered_set<uint64_t> visited_states;
-    int sr = 0;
-    int sc = 0;
-    for (int i = line; i < N; ++i) {
-      for (int j = line; j < N; ++j) {
-        if (initial_tiles[i][j] == (((N - 1) << 8) | (N - 1))) {
-          sr = i;
-          sc = j;
-        } else {
-          int tr = initial_tiles[i][j] >> 8;
-          int tc = initial_tiles[i][j] & 0xFF;
-          initial_pena += (abs(tr - i) + abs(tc - j));
-        }
-        initial_hash ^= cell_hash[i][j] * initial_tiles[i][j];
-      }
-    }
-    debug("initial_pena:%d\n", initial_pena);
-    if (initial_pena == 0) return vi();
-    visited_states.insert(initial_hash);
-    State initial_state = {initial_tiles, initial_pena, sr, sc, -1, initial_hash};
-    vector<State> cur_states = {initial_state};
-    int turn = 0;
-    for (; turn < T; ++turn) {
-      debug("turn:%d\n", turn);
-      vector<SingleMove> moves;
-      for (int i = 0; i < cur_states.size(); ++i) {
-        const State& cur_state = cur_states[i];
-        // debug("er:%d ec:%d back_move:%d\n", cur_state.er, cur_state.ec, cur_state.back_move);
-        for (int dir = 0; dir < 4; ++dir) {
-          if (dir == cur_state.back_move) continue;
-          int nr = cur_state.er + DR[dir];
-          int nc = cur_state.ec + DC[dir];
-          if (nr < line || N <= nr || nc < line || N <= nc) continue;
-          int tr = cur_state.tiles[nr][nc] >> 8;
-          int tc = cur_state.tiles[nr][nc] & 0xFF;
-          uint64_t new_hash = cur_state.hash;
-          new_hash ^= cur_state.tiles[cur_state.er][cur_state.ec] * cell_hash[cur_state.er][cur_state.ec];
-          new_hash ^= cur_state.tiles[nr][nc] * cell_hash[nr][nc];
-          new_hash ^= cur_state.tiles[cur_state.er][cur_state.ec] * cell_hash[nr][nc];
-          new_hash ^= cur_state.tiles[nr][nc] * cell_hash[cur_state.er][cur_state.ec];
-          if (visited_states.count(new_hash) != 0) {
-            continue;
-          }
-          int diff = ((abs(tr - cur_state.er) + abs(tc - cur_state.ec)) - (abs(tr - nr) + abs(tc - nc)));
-          int move_pena = cur_state.penalty + diff;
-          if (move_pena == 0) {
-            vi ans = {dir};
-            int t = turn - 1;
-            int si = i;
-            while (t >= 0) {
-              ans.push_back(beam_history[t][si].dir);
-              si = beam_history[t][si].prev_idx;
-              --t;
-            }
-            reverse(ans.begin(), ans.end());
-            return ans;
-          }
-          moves.push_back({move_pena, dir, i});
-        }
-      }
-      if (moves.empty()) {
-        debugStr("give up\n");
-        break;
-      }
-      // sort(moves.begin(), moves.end());
-      if (moves.size() > BEAM_SIZE) {
-        nth_element(moves.begin(), moves.begin() + BEAM_SIZE, moves.end());
-      }
-      debug("turn:%d penalty:%d\n", turn, moves[0].penalty);
-      vector<State> next_states;
-      for (int i = 0; i < min((int)moves.size(), BEAM_SIZE); ++i) {
-        const auto& move = moves[i];
-        const State& parent_state = cur_states[move.state_idx];
-        State next_state = {parent_state.tiles, move.penalty, parent_state.er + DR[move.dir], parent_state.ec + DC[move.dir], move.dir ^ 2, 0ull};
-        uint64_t new_hash = parent_state.hash;
-        new_hash ^= parent_state.tiles[parent_state.er][parent_state.ec] * cell_hash[parent_state.er][parent_state.ec];
-        new_hash ^= parent_state.tiles[next_state.er][next_state.ec] * cell_hash[next_state.er][next_state.ec];
-        new_hash ^= parent_state.tiles[parent_state.er][parent_state.ec] * cell_hash[next_state.er][next_state.ec];
-        new_hash ^= parent_state.tiles[next_state.er][next_state.ec] * cell_hash[parent_state.er][parent_state.ec];
-        next_state.hash = new_hash;
-        if (visited_states.count(new_hash) != 0) {
-          continue;
-        }
-        visited_states.insert(new_hash);
-        swap(next_state.tiles[parent_state.er][parent_state.ec], next_state.tiles[next_state.er][next_state.ec]);
-        next_states.push_back(next_state);
-        beam_history[turn][next_states.size() - 1].prev_idx = move.state_idx;
-        beam_history[turn][next_states.size() - 1].dir = move.dir;
-      }
-      swap(cur_states, next_states);
-    }
-
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        debug("(%2d %2d) ", cur_states[0].tiles[i][j] >> 8, cur_states[0].tiles[i][j] & 0xFF);
-      }
-      debugln();
-    }
-    vi ans;
-    int t = turn - 1;
-    int si = 0;
-    while (t >= 0) {
-      ans.push_back(beam_history[t][si].dir);
-      si = beam_history[t][si].prev_idx;
-      --t;
-    }
-    reverse(ans.begin(), ans.end());
-    return ans;
-  }
-
-  vi solve() {
-
-    vi ret;
-    // for (int line = 0; line < N - 4; ++line) {
-    //   vi line_ans = solve_line(tiles, line);
-    //   int er = 0;
-    //   int ec = 0;
-    //   for (int r = 0; r < N; ++r) {
-    //     for (int c = 0; c < N; ++c) {
-    //       if (tiles[r][c] == ((N - 1) << 8 | (N - 1))) {
-    //         er = r;
-    //         ec = c;
-    //       }
-    //     }
-    //   }
-    //   for (int move : line_ans) {
-    //     int nr = er + DR[move];
-    //     int nc = ec + DC[move];
-    //     swap(tiles[er][ec], tiles[nr][nc]);
-    //     er = nr;
-    //     ec = nc;
-    //   }
-    //   for (int i = 0; i < N; ++i){
-    //     if (tiles[line][i] != ((line << 8) | i)) {
-    //       return ret;
-    //     }
-    //     if (tiles[i][line] != ((i << 8) | line)) {
-    //       return ret;
-    //     }
-    //   }
-    //   ret.insert(ret.end(), line_ans.begin(), line_ans.end());
-    // }
-    vi last_ans = solve_whole(tiles, 0);
-    ret.insert(ret.end(), last_ans.begin(), last_ans.end());
-    return ret;
   }
 };
 
@@ -1822,6 +1566,7 @@ int main() {
     debugStr("rot\n");
     rot_orig_tiles();
   }
+  precalc_pattern();
 
   auto solver = unique_ptr<Solver>(new Solver());
   Result res = solver->solve();
