@@ -285,6 +285,7 @@ constexpr int EMBED_SIZE = 8;
 array<array<int, 1 << (3 * 6)>, EMBED_SIZE - 1> embed_pattern;
 constexpr int EMBED_SIZE_3 = 6;
 array<array<array<array<array<array<array<array<int, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3> embed_pattern_3;
+array<array<array<array<array<array<array<array<int, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3> embed_pattern_3_bottom;
 
 inline int pack_embed_pos(int sr, int sc, int tr0, int tc0, int tr1, int tc1) {
   return (sr << 15) | (sc << 12) | (tr0 << 9) | (tc0 << 6) | (tr1 << 3) | tc1;
@@ -403,71 +404,74 @@ inline int pack_embed_pos_3(int sr, int sc, int tr0, int tc0, int tr1, int tc1, 
 }
 
 void precalc_pattern_3() {
-  auto& pat = embed_pattern_3;
-  vi cur_que = {
-    pack_embed_pos_3(1, 1, 1, 0, 2, 0, 3, 0),
-    pack_embed_pos_3(2, 1, 1, 0, 2, 0, 3, 0),
-    pack_embed_pos_3(3, 1, 1, 0, 2, 0, 3, 0),
-    pack_embed_pos_3(0, 0, 1, 0, 2, 0, 3, 0),
-  };
-  // hack
-  pat[1][1][1][0][2][0][3][0] = -1;
-  pat[2][1][1][0][2][0][3][0] = -1;
-  pat[3][1][1][0][2][0][3][0] = -1;
-  pat[0][0][1][0][2][0][3][0] = -1;
-  vi dirs = {0, 1, 3, 2};
-  for (int dist = 1; !cur_que.empty(); ++dist) {
-    // debug("dist:%d que_size:%lu\n", dist, cur_que.size());
-    vi next_que;
-    for (int p : cur_que) {
-      int sr = p >> 21;
-      int sc = (p >> 18) & 7;
-      int tr0 = (p >> 15) & 7;
-      int tc0 = (p >> 12) & 7;
-      int tr1 = (p >> 9) & 7;
-      int tc1 = (p >> 6) & 7;
-      int tr2 = (p >> 3) & 7;
-      int tc2 = (p >> 0) & 7;
-      for (int dir : dirs) {
-        int nr = sr + DR[dir];
-        int nc = sc + DC[dir];
-        if (nr < 0 || EMBED_SIZE_3 <= nr || nc < 0 || EMBED_SIZE_3 <= nc) continue;
-        if (nc == 0 && nr > 3) continue;
-        int ntr0, ntc0, ntr1, ntc1, ntr2, ntc2;
-        if (nr == tr0 && nc == tc0) {
-          ntr0 = sr;
-          ntc0 = sc;
-        } else {
-          ntr0 = tr0;
-          ntc0 = tc0;
-        }
-        if (nr == tr1 && nc == tc1) {
-          ntr1 = sr;
-          ntc1 = sc;
-        } else {
-          ntr1 = tr1;
-          ntc1 = tc1;
-        }
-        if (nr == tr2 && nc == tc2) {
-          ntr2 = sr;
-          ntc2 = sc;
-        } else {
-          ntr2 = tr2;
-          ntc2 = tc2;
-        }
-        if (pat[nr][nc][ntr0][ntc0][ntr1][ntc1][ntr2][ntc2] == 0) {
-          pat[nr][nc][ntr0][ntc0][ntr1][ntc1][ntr2][ntc2] = (dist << 2) | dir;
-          int np = pack_embed_pos_3(nr, nc, ntr0, ntc0, ntr1, ntc1, ntr2, ntc2);
-          next_que.push_back(np);
+  for (int type = 0; type <= 1; ++type) {
+    auto& pat = type == 0 ? embed_pattern_3 : embed_pattern_3_bottom;
+    int shift = type == 0 ? 1 : 3;
+    vi cur_que = {
+      pack_embed_pos_3(shift - 1 + 1, 1, shift, 0, shift + 1, 0, shift + 2, 0),
+      pack_embed_pos_3(shift - 1 + 2, 1, shift, 0, shift + 1, 0, shift + 2, 0),
+      pack_embed_pos_3(shift - 1 + 3, 1, shift, 0, shift + 1, 0, shift + 2, 0),
+      pack_embed_pos_3(shift - 1 + 0, 0, shift, 0, shift + 1, 0, shift + 2, 0),
+    };
+    // hack
+    pat[shift - 1 + 1][1][shift][0][shift + 1][0][shift + 2][0] = -1;
+    pat[shift - 1 + 2][1][shift][0][shift + 1][0][shift + 2][0] = -1;
+    pat[shift - 1 + 3][1][shift][0][shift + 1][0][shift + 2][0] = -1;
+    pat[shift - 1 + 0][0][shift][0][shift + 1][0][shift + 2][0] = -1;
+    vi dirs = {0, 1, 3, 2};
+    for (int dist = 1; !cur_que.empty(); ++dist) {
+      // debug("dist:%d que_size:%lu\n", dist, cur_que.size());
+      vi next_que;
+      for (int p : cur_que) {
+        int sr = p >> 21;
+        int sc = (p >> 18) & 7;
+        int tr0 = (p >> 15) & 7;
+        int tc0 = (p >> 12) & 7;
+        int tr1 = (p >> 9) & 7;
+        int tc1 = (p >> 6) & 7;
+        int tr2 = (p >> 3) & 7;
+        int tc2 = (p >> 0) & 7;
+        for (int dir : dirs) {
+          int nr = sr + DR[dir];
+          int nc = sc + DC[dir];
+          if (nr < 0 || EMBED_SIZE_3 <= nr || nc < 0 || EMBED_SIZE_3 <= nc) continue;
+          if (nc == 0 && nr > shift + 2) continue;
+          int ntr0, ntc0, ntr1, ntc1, ntr2, ntc2;
+          if (nr == tr0 && nc == tc0) {
+            ntr0 = sr;
+            ntc0 = sc;
+          } else {
+            ntr0 = tr0;
+            ntc0 = tc0;
+          }
+          if (nr == tr1 && nc == tc1) {
+            ntr1 = sr;
+            ntc1 = sc;
+          } else {
+            ntr1 = tr1;
+            ntc1 = tc1;
+          }
+          if (nr == tr2 && nc == tc2) {
+            ntr2 = sr;
+            ntc2 = sc;
+          } else {
+            ntr2 = tr2;
+            ntc2 = tc2;
+          }
+          if (pat[nr][nc][ntr0][ntc0][ntr1][ntc1][ntr2][ntc2] == 0) {
+            pat[nr][nc][ntr0][ntc0][ntr1][ntc1][ntr2][ntc2] = (dist << 2) | dir;
+            int np = pack_embed_pos_3(nr, nc, ntr0, ntc0, ntr1, ntc1, ntr2, ntc2);
+            next_que.push_back(np);
+          }
         }
       }
+      swap(cur_que, next_que);
     }
-    swap(cur_que, next_que);
+    pat[shift - 1 + 1][1][shift][0][shift + 1][0][shift + 2][0] = 0;
+    pat[shift - 1 + 2][1][shift][0][shift + 1][0][shift + 2][0] = 0;
+    pat[shift - 1 + 3][1][shift][0][shift + 1][0][shift + 2][0] = 0;
+    pat[shift - 1 + 0][0][shift][0][shift + 1][0][shift + 2][0] = 0;
   }
-  pat[1][1][1][0][2][0][3][0] = 0;
-  pat[2][1][1][0][2][0][3][0] = 0;
-  pat[3][1][1][0][2][0][3][0] = 0;
-  pat[0][0][1][0][2][0][3][0] = 0;
 }
 
 // maximize
@@ -1153,9 +1157,9 @@ struct PuzzleSolver {
     return true;
   }
 
-  int recover_pattern_3(int sr, int sc, int tr0, int tc0, int tr1, int tc1, int tr2, int tc2) {
+  int recover_pattern_3(bool bottom, int sr, int sc, int tr0, int tc0, int tr1, int tc1, int tr2, int tc2) {
     // debugStr("recover_pattern_3\n");
-    const auto& pat = embed_pattern_3;
+    const auto& pat = bottom ? embed_pattern_3_bottom : embed_pattern_3;
     int ri = 0;
     while (true) {
       // debug("%d %d %d %d %d %d %d %d\n", sr, sc, tr0, tc0, tr1, tc1, tr2, tc2);
@@ -1181,10 +1185,10 @@ struct PuzzleSolver {
   }
 
   int find_best_pos_pattern_3(
-    int sr, int sc, int t0, int t1, int t2,
+    bool bottom, int sr, int sc, int t0, int t1, int t2,
     const vi& cands0, const vi& cands1, const vi& cands2, array<int, 6>& best_pos
   ) {
-    const auto& pat = embed_pattern_3[sr][sc];
+    const auto& pat = bottom ? embed_pattern_3_bottom[sr][sc] : embed_pattern_3[sr][sc];
     int best_len = INF;
     if (t0 == t1 && t0 == t2) {
       for (int i = 0; i < cands0.size(); ++i) {
@@ -1281,7 +1285,8 @@ struct PuzzleSolver {
   }
 
   bool solve_pattern_3_up(int level, int pos) {
-    int top = pos - 1;
+    const bool bottom = pos == N - 3;
+    int top = bottom ? pos - 3 : pos - 1;
     if (er < top || top + EMBED_SIZE_3 <= er || level + EMBED_SIZE_3 <= ec) return false;
     int sr = er - top;
     int sc = ec - level;
@@ -1304,11 +1309,11 @@ struct PuzzleSolver {
       }
     }
     array<int, 6> best_pos;
-    int best_len = find_best_pos_pattern_3(sr, sc, t0, t1, t2, cands0, cands1, cands2, best_pos);
+    int best_len = find_best_pos_pattern_3(bottom, sr, sc, t0, t1, t2, cands0, cands1, cands2, best_pos);
     if (best_len == INF) {
       return false;
     }
-    int len = recover_pattern_3(sr, sc, best_pos[0], best_pos[1], best_pos[2], best_pos[3], best_pos[4], best_pos[5]);
+    int len = recover_pattern_3(bottom, sr, sc, best_pos[0], best_pos[1], best_pos[2], best_pos[3], best_pos[4], best_pos[5]);
     for (int i = 0; i < len; ++i) {
       int dir = pattern_result[i];
       int nr = er + DR[dir];
@@ -1326,7 +1331,8 @@ struct PuzzleSolver {
   }
 
   bool solve_pattern_3_right(int level, int pos) {
-    int right = pos + 1;
+    bool bottom = pos == level + 3;
+    int right = bottom ? pos + 3 : pos + 1;
     if (er >= level + EMBED_SIZE_3 || ec > right || ec <= right - EMBED_SIZE_3) return false;
     int sr = right - ec;
     int sc = er - level;
@@ -1349,11 +1355,11 @@ struct PuzzleSolver {
       }
     }
     array<int, 6> best_pos;
-    int best_len = find_best_pos_pattern_3(sr, sc, t0, t1, t2, cands0, cands1, cands2, best_pos);
+    int best_len = find_best_pos_pattern_3(bottom, sr, sc, t0, t1, t2, cands0, cands1, cands2, best_pos);
     if (best_len == INF) {
       return false;
     }
-    int len = recover_pattern_3(sr, sc, best_pos[0], best_pos[1], best_pos[2], best_pos[3], best_pos[4], best_pos[5]);
+    int len = recover_pattern_3(bottom, sr, sc, best_pos[0], best_pos[1], best_pos[2], best_pos[3], best_pos[4], best_pos[5]);
     for (int i = 0; i < len; ++i) {
       int dir = (pattern_result[i] + 1) & 3;
       int nr = er + DR[dir];
@@ -1377,15 +1383,8 @@ struct PuzzleSolver {
         continue;
       }
       if (i != level + 3 && (rnd.nextUInt() & 7)) {
-        // debugStr("tiles\n");
-        // print_tiles(tiles);
         bool found_pattern = solve_pattern_3_up(level, i - 2);
         if (found_pattern) {
-          // debugStr("target\n");
-          // print_tiles(target);
-          // debugStr("tiles\n");
-          // print_tiles(tiles);
-          // debugln();
           assert(tiles[i][level] == target[i][level]);
           assert(tiles[i - 1][level] == target[i - 1][level]);
           assert(tiles[i - 2][level] == target[i - 2][level]);
@@ -1812,6 +1811,8 @@ struct Solver {
   }
 
   vector<vvi> generate_targets() {
+    ll elapsed = get_elapsed_msec();
+    ll until = (TL - elapsed) / 3 + elapsed;
     unordered_set<uint64_t> visited;
     TreePlacer tree_placer;
     vector<vvi> targets;
@@ -1820,12 +1821,12 @@ struct Solver {
     vvi prev_target;
     for (int i = 0; ; ++i) {
       // if (penas.size() > 100) break;
-      if (get_elapsed_msec() > TL / 3) {
+      if (get_elapsed_msec() > until) {
         break;
       }
       for (int j = 0; j < 1000; ++j) {
         // if (penas.size() > 100) break;
-        if (get_elapsed_msec() > TL / 3) {
+        if (get_elapsed_msec() > until) {
           debug("gen turn:%d %d\n", i, j);
           break;
         }
