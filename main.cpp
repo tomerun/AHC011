@@ -688,7 +688,12 @@ struct TreePlacer {
       }
     }
     if (cur_diff == 0) {
-      return tiles;
+      // remove sentinel
+      vvi ret;
+      for (int i = 1; i <= N; ++i) {
+        ret.push_back(vi(tiles[i].begin() + 1, tiles[i].begin() + N + 1));
+      }
+      return ret;
     } else {
       return vvi();
     }
@@ -734,7 +739,7 @@ struct PuzzleSolver {
   int bfs_counter;
   array<int, 100> pattern_result;
 
-  PuzzleSolver(vvi& initial_tiles_, vvi& target_)
+  PuzzleSolver(const vvi& initial_tiles_, const vvi& target_)
    : tiles(initial_tiles_), target(target_), protect(N, vector<bool>(N, false)), bfs_counter(0) {
     bfs_from.assign(N, vi(N, -1));
     bfs_cnt.assign(N, vi(N, 0));
@@ -991,7 +996,7 @@ struct PuzzleSolver {
       int nr = er + DR[dir];
       int nc = ec + DC[dir];
       if (nr == N || nc == N) {
-        debug("fail %d %d %d\n", nr, nc, len);
+        // debug("fail %d %d %d\n", nr, nc, len);
         for (int j = i - 1; j >= 0; --j) {
           step(pattern_result[j] ^ 2);
         }
@@ -1055,7 +1060,7 @@ struct PuzzleSolver {
       int nr = er + DR[dir];
       int nc = ec + DC[dir];
       if (nr == N || nc == N || protect[nr][nc]) {
-        debug("fail %d %d %d\n", nr, nc, len);
+        // debug("fail %d %d %d\n", nr, nc, len);
         for (int j = i - 1; j >= 0; --j) {
           step((pattern_result[j] + 3) & 3);
         }
@@ -1119,7 +1124,7 @@ struct PuzzleSolver {
       int nr = er + DR[dir];
       int nc = ec + DC[dir];
       if (nr == N || nc == N || protect[nr][nc]) {
-        debug("fail %d %d %d\n", nr, nc, len);
+        // debug("fail %d %d %d\n", nr, nc, len);
         for (int j = i - 1; j >= 0; --j) {
           step(pattern_result[j] ^ 3);
         }
@@ -1182,7 +1187,7 @@ struct PuzzleSolver {
       int nr = er + DR[dir];
       int nc = ec + DC[dir];
       if (nr == N || nc == N || protect[nr][nc]) {
-        debug("fail %d %d %d\n", nr, nc, len);
+        // debug("fail %d %d %d\n", nr, nc, len);
         for (int j = i - 1; j >= 0; --j) {
           step(((pattern_result[j] ^ (pattern_result[j] << 1)) & 3) ^ 2);
         }
@@ -1646,6 +1651,11 @@ struct Solver {
 
   Result solve() {
     vi best_ans(T * 75 / 100, 0);
+    TreePlacer tree_placer;
+    vvi initial_tiles;
+    for (int i = 0; i < N; ++i) {
+      initial_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
+    }
     int turn = 0;
     uint64_t worst_time = 0;
     uint64_t before_time = get_elapsed_msec();
@@ -1654,13 +1664,23 @@ struct Solver {
         debug("total_first_turn:%d\n", turn);
         break;
       }
-      bool success = false;
-      vi ans = solve_one(success, best_ans.size());
-      if (success) {
-        remove_redundant_moves(ans);
-        if (ans.size() < best_ans.size()) {
-          swap(ans, best_ans);
-          debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
+      START_TIMER(0);
+      vvi target_tiles = tree_placer.find();
+      STOP_TIMER(0);
+      if (target_tiles.empty()) {
+        debugStr("faile to find target tree\n");
+      } else {
+        for (int i = 0; i < 20; ++i) {
+          bool success = false;
+          PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
+          vi ans = puzzle_solver.solve(success, best_ans.size());
+          if (success) {
+            remove_redundant_moves(ans);
+            if (ans.size() < best_ans.size()) {
+              swap(ans, best_ans);
+              debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
+            }
+          }
         }
       }
       turn++;
@@ -1673,9 +1693,7 @@ struct Solver {
     worst_time = 0;
     before_time = get_elapsed_msec();
     vvi target_tiles;
-    vvi initial_tiles;
     for (int i = 0; i < N; ++i) {
-      initial_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
       target_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
     }
     int er = 0;
@@ -1719,33 +1737,6 @@ struct Solver {
     return {best_ans, N * N - 1};
   }
 
-  vi solve_one(bool& success, int best_len) {
-    START_TIMER(0);
-    TreePlacer tree_placer;
-    vvi target_tiles = tree_placer.find();
-    STOP_TIMER(0);
-    if (target_tiles.empty()) {
-      debugStr("faile to find target tree\n");
-      success = false;
-      return vi();
-    }
-
-    // remove sentinel
-    target_tiles.pop_back();
-    target_tiles.erase(target_tiles.begin());
-    for (auto& row : target_tiles) {
-      row.pop_back();
-      row.erase(row.begin());
-    }
-    // print_tiles(target_tiles, false);
-
-    vvi tiles;
-    for (int i = 0; i < N; ++i) {
-      tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
-    }
-    PuzzleSolver puzzle_solver(tiles, target_tiles);
-    return puzzle_solver.solve(success, best_len);
-  }
 };
 
 void rot_orig_tiles() {
