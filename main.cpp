@@ -652,23 +652,24 @@ struct TreePlacer {
       increase(diff, ntile_new);
       bfs_counter++;
       bfs_que.clear();
-      bfs_que.push_back((cr << 8) | cc);
+      bfs_que.push_back((tiles[cr][cc] << 16) | (cr << 8) | cc);
       bfs_cnt[cr][cc] = bfs_counter;
       int qi = 0;
       // debug("bfs cr:%d cc:%d nr:%d nc:%d\n", cr, cc, nr, nc);
-      // TODO: bidirectional search
       while (true) {
-        int r0 = bfs_que[qi] >> 8;
+        int r0 = (bfs_que[qi] >> 8) & 0xFF;
         int c0 = bfs_que[qi] & 0xFF;
         if (r0 == nr && c0 == nc) break;
-        for (int i = 0; i < 4; ++i) {
-          if (!(tiles[r0][c0] & (1 << i))) continue;
+        int t = bfs_que[qi] >> 16;
+        while (t) {
+          int i = __builtin_ctz(t);
+          t &= t - 1;
           int r1 = r0 + DR[i];
           int c1 = c0 + DC[i];
-          if (bfs_cnt[r1][c1] == bfs_counter) continue;
           bfs_cnt[r1][c1] = bfs_counter;
           bfs_from[r1][c1] = i ^ 2;
-          bfs_que.push_back((r1 << 8) | c1);
+          int t2 = tiles[r1][c1];
+          bfs_que.push_back(((t2 ^ (1 << (i ^ 2))) << 16) | (r1 << 8) | c1);
         }
         qi++;
       }
@@ -1534,7 +1535,7 @@ struct Solver {
         }
       }
     }
-    const int CNT = 1000;
+    const int CNT = 100;
     debug("count:%lu\n", penas.size());
     if (penas.size() > CNT) {
       vector<vvi> ret(CNT);
