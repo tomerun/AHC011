@@ -1368,12 +1368,12 @@ FOUND:
     START_TIMER(1);
     for (int level = 0; level < N - 3; ++level) {
       solve_cw(level);
+      debug("level:%d len:%lu\n", level, ans.size());
       if (ans.size() > best_len[level] + 20) {
         success = false;
         STOP_TIMER(1);
         return ans;
       }
-      debug("level:%d len:%lu\n", level, ans.size());
       cur_lens.push_back(ans.size());
       flip();
     }
@@ -1385,6 +1385,48 @@ FOUND:
     return ans;
   }
 };
+
+int pos_dist(int p0, int p1) {
+  return abs((p0 >> 4) - (p1 >> 4)) + abs((p0 & 0xF) - (p1 & 0xF));
+}
+
+int calc_tiles_dist(const vvi target_tiles) {
+  vvi orig_pos(16);
+  vvi target_pos(16);
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
+      orig_pos[orig_tiles[i][j]].push_back((i << 4) | j);
+      if (i < 3 || j < 3) {
+        target_pos[target_tiles[i][j]].push_back((i << 4) | j);
+      }
+    }
+  }
+  int sum = 0;
+  for (int i = 1; i < 16; ++i) {
+    if (target_pos[i].empty()) continue;
+    int n = orig_pos[i].size();
+    vi dp = vi(1 << n, INF);
+    dp[0] = 0;
+    for (int j = 0; j < target_pos[i].size(); ++j) {
+      for (int k = 0; k < dp.size(); ++k) {
+        if (dp[k] == INF) continue;
+        if (__builtin_popcount(k) != j) continue;
+        for (int l = 0; l < n; ++l) {
+          if (k & (1 << l)) continue;
+          dp[k | (1 << l)] = min(dp[k | (1 << l)], dp[k] + pos_dist(target_pos[i][j], orig_pos[i][l]));
+        }
+      }
+    }
+    int cur_pena = INF;
+    for (int j = 0; j < dp.size(); ++j) {
+      if (__builtin_popcount(j) == target_pos[i].size()) {
+        cur_pena = min(cur_pena, dp[j]);
+      }
+    }
+    sum += cur_pena;
+  }
+  return sum;
+}
 
 struct Solver {
   Solver() {}
@@ -1425,6 +1467,7 @@ struct Solver {
       if (target_tiles.empty()) {
         debugStr("faile to find target tree\n");
       } else {
+        // debug("dist:%d\n", calc_tiles_dist(target_tiles));
         for (int i = 0; i < 5; ++i) {
           bool success = false;
           PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
