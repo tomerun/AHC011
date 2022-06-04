@@ -641,8 +641,10 @@ struct TreePlacer {
         int r0 = bfs_que[qi] >> 8;
         int c0 = bfs_que[qi] & 0xFF;
         if (r0 == nr && c0 == nc) break;
-        for (int i = 0; i < 4; ++i) {
-          if (!(tiles[r0][c0] & (1 << i))) continue;
+        int t = tiles[r0][c0];
+        while (t) {
+          int i = __builtin_ctz(t);
+          t &= t - 1;
           int r1 = r0 + DR[i];
           int c1 = c0 + DC[i];
           if (bfs_cnt[r1][c1] == bfs_counter) continue;
@@ -786,12 +788,6 @@ struct PuzzleSolver {
     int tr = pos0 >> 8;
     int tc = pos0 & 0xFF;
     // debug("convey r:%d c:%d tr:%d tc:%d\n", r, c, tr, tc);
-    // for (int i = 0; i < N; ++i) {
-    //   for (int j = 0; j < N; ++j) {
-    //     debug("%d", (int)protect[i][j]);
-    //   }
-    //   debugln();
-    // }
     while (tr != r || tc != c) {
       protect[tr][tc] = true;
       int order_base = rnd.nextUInt() & 3;
@@ -825,13 +821,6 @@ struct PuzzleSolver {
       return;
     }
     assert(path.empty());
-    // debugStr("move_to_bfs\n");
-    // for (int i = 0; i < N; ++i) {
-    //   for (int j = 0; j < N; ++j) {
-    //     debug("%d", (int)protect[i][j]);
-    //   }
-    //   debugln();
-    // }
     static vi bfs_que;
     bfs_que.clear();
     bfs_que.push_back((er << 8) | ec);
@@ -1486,9 +1475,9 @@ struct PuzzleSolver {
     }
   }
 
-  bool solve_whole(int size, int best_len) {
-    const uint64_t mask = (1ull << (4 * size * size)) - 1;
-    const int base_coord = N - size;
+  bool solve_whole(int best_len) {
+    const uint64_t mask = (1ull << (4 * 3 * 3)) - 1;
+    const int base_coord = N - 3;
     const int GOAL_LEN = 10;
     uint64_t target_state = 0ull;
     uint64_t initial_state = 0ull;
@@ -1512,12 +1501,12 @@ struct PuzzleSolver {
         int cr = (int)(cur_state >> 40);
         int cc = (int)(cur_state >> 36) & 0xF;
         cur_state &= mask;
-        int cur_bit_pos = ((cr - base_coord) * size + (cc - base_coord)) * 4;
+        int cur_bit_pos = ((cr - base_coord) * 3 + (cc - base_coord)) * 4;
         for (int dir = 0; dir < 4; ++dir) {
           int nr = cr + DR[dir];
           int nc = cc + DC[dir];
           if (nr < base_coord || N <= nr || nc < base_coord || N <= nc) continue;
-          int next_bit_pos = ((nr - base_coord) * size + (nc - base_coord)) * 4;
+          int next_bit_pos = ((nr - base_coord) * 3 + (nc - base_coord)) * 4;
           uint64_t tile = (cur_state >> next_bit_pos) & 0xF;
           uint64_t next_state = (cur_state ^ (tile << next_bit_pos)) | (tile << cur_bit_pos);
           if (goal_states.count(next_state) == 0) {
@@ -1544,12 +1533,12 @@ struct PuzzleSolver {
           int cr = (int)(cur_state >> 40);
           int cc = (int)(cur_state >> 36) & 0xF;
           cur_state &= mask;
-          int cur_bit_pos = ((cr - base_coord) * size + (cc - base_coord)) * 4;
+          int cur_bit_pos = ((cr - base_coord) * 3 + (cc - base_coord)) * 4;
           for (int dir = 0; dir < 4; ++dir) {
             int nr = cr + DR[dir];
             int nc = cc + DC[dir];
             if (nr < base_coord || N <= nr || nc < base_coord || N <= nc) continue;
-            int next_bit_pos = ((nr - base_coord) * size + (nc - base_coord)) * 4;
+            int next_bit_pos = ((nr - base_coord) * 3 + (nc - base_coord)) * 4;
             uint64_t tile = (cur_state >> next_bit_pos) & 0xF;
             uint64_t next_state = (cur_state ^ (tile << next_bit_pos)) | (tile << cur_bit_pos);
             if (visited_states.count(next_state) == 0) {
@@ -1570,17 +1559,17 @@ FOUND:
     vi path;
     uint64_t s = finish_state;
     while (s != initial_state) {
-      for (int i = 0; i < size * size; ++i) {
+      for (int i = 0; i < 3 * 3; ++i) {
         if (((s >> (i * 4)) & 0xF) == 0) {
-          int r = i / size;
-          int c = i % size;
+          int r = i / 3;
+          int c = i % 3;
           int dir = visited_states[s];
           path.push_back(dir);
           int nr = r - DR[dir];
           int nc = c - DC[dir];
-          uint64_t tile = (s >> ((nr * size + nc) * 4)) & 0xF;
-          s ^= tile << ((nr * size + nc) * 4);
-          s |= tile << ((r * size + c) * 4);
+          uint64_t tile = (s >> ((nr * 3 + nc) * 4)) & 0xF;
+          s ^= tile << ((nr * 3 + nc) * 4);
+          s |= tile << ((r * 3 + c) * 4);
           break;
         }
       }
@@ -1591,17 +1580,17 @@ FOUND:
 
     s = finish_state;
     while (s != target_state) {
-      for (int i = 0; i < size * size; ++i) {
+      for (int i = 0; i < 3 * 3; ++i) {
         if (((s >> (i * 4)) & 0xF) == 0) {
-          int r = i / size;
-          int c = i % size;
+          int r = i / 3;
+          int c = i % 3;
           int dir = goal_states[s] ^ 2;
           ans.push_back(dir);
           int nr = r + DR[dir];
           int nc = c + DC[dir];
-          uint64_t tile = (s >> ((nr * size + nc) * 4)) & 0xF;
-          s ^= tile << ((nr * size + nc) * 4);
-          s |= tile << ((r * size + c) * 4);
+          uint64_t tile = (s >> ((nr * 3 + nc) * 4)) & 0xF;
+          s ^= tile << ((nr * 3 + nc) * 4);
+          s |= tile << ((r * 3 + c) * 4);
           break;
         }
       }
@@ -1622,12 +1611,13 @@ FOUND:
       }
       if (ans.size() > best_len) {
         success = false;
+        STOP_TIMER(1);
         return ans;
       }
     }
     STOP_TIMER(1);
     START_TIMER(2);
-    success = solve_whole(3, best_len);
+    success = solve_whole(best_len);
     STOP_TIMER(2);
     return ans;
   }
@@ -1660,7 +1650,7 @@ struct Solver {
     uint64_t worst_time = 0;
     uint64_t before_time = get_elapsed_msec();
     while (true) {
-      if (get_elapsed_msec() + worst_time > TL * 3 / 4) {
+      if (get_elapsed_msec() + worst_time > TL * 9 / 10) {
         debug("total_first_turn:%d\n", turn);
         break;
       }
@@ -1670,7 +1660,7 @@ struct Solver {
       if (target_tiles.empty()) {
         debugStr("faile to find target tree\n");
       } else {
-        for (int i = 0; i < 20; ++i) {
+        for (int i = 0; i < 5; ++i) {
           bool success = false;
           PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
           vi ans = puzzle_solver.solve(success, best_ans.size());
