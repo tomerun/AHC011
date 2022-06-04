@@ -405,16 +405,16 @@ inline int pack_embed_pos_3(int sr, int sc, int tr0, int tc0, int tr1, int tc1, 
 void precalc_pattern_3() {
   auto& pat = embed_pattern_3;
   vi cur_que = {
-    pack_embed_pos_3(2, 1, 2, 0, 3, 0, 4, 0),
-    pack_embed_pos_3(3, 1, 2, 0, 3, 0, 4, 0),
-    pack_embed_pos_3(4, 1, 2, 0, 3, 0, 4, 0),
-    pack_embed_pos_3(1, 0, 2, 0, 3, 0, 4, 0),
+    pack_embed_pos_3(1, 1, 1, 0, 2, 0, 3, 0),
+    pack_embed_pos_3(2, 1, 1, 0, 2, 0, 3, 0),
+    pack_embed_pos_3(3, 1, 1, 0, 2, 0, 3, 0),
+    pack_embed_pos_3(0, 0, 1, 0, 2, 0, 3, 0),
   };
   // hack
-  pat[2][1][2][0][3][0][4][0] = -1;
-  pat[3][1][2][0][3][0][4][0] = -1;
-  pat[4][1][2][0][3][0][4][0] = -1;
-  pat[1][0][2][0][3][0][4][0] = -1;
+  pat[1][1][1][0][2][0][3][0] = -1;
+  pat[2][1][1][0][2][0][3][0] = -1;
+  pat[3][1][1][0][2][0][3][0] = -1;
+  pat[0][0][1][0][2][0][3][0] = -1;
   vi dirs = {0, 1, 3, 2};
   for (int dist = 1; !cur_que.empty(); ++dist) {
     // debug("dist:%d que_size:%lu\n", dist, cur_que.size());
@@ -432,7 +432,7 @@ void precalc_pattern_3() {
         int nr = sr + DR[dir];
         int nc = sc + DC[dir];
         if (nr < 0 || EMBED_SIZE_3 <= nr || nc < 0 || EMBED_SIZE_3 <= nc) continue;
-        if (nc == 0 && nr > 4) continue;
+        if (nc == 0 && nr > 3) continue;
         int ntr0, ntc0, ntr1, ntc1, ntr2, ntc2;
         if (nr == tr0 && nc == tc0) {
           ntr0 = sr;
@@ -464,10 +464,10 @@ void precalc_pattern_3() {
     }
     swap(cur_que, next_que);
   }
-  pat[2][1][2][0][3][0][4][0] = 0;
-  pat[3][1][2][0][3][0][4][0] = 0;
-  pat[4][1][2][0][3][0][4][0] = 0;
-  pat[1][0][2][0][3][0][4][0] = 0;
+  pat[1][1][1][0][2][0][3][0] = 0;
+  pat[2][1][1][0][2][0][3][0] = 0;
+  pat[3][1][1][0][2][0][3][0] = 0;
+  pat[0][0][1][0][2][0][3][0] = 0;
 }
 
 // maximize
@@ -1161,7 +1161,6 @@ struct PuzzleSolver {
       // debug("%d %d %d %d %d %d %d %d\n", sr, sc, tr0, tc0, tr1, tc1, tr2, tc2);
       int v = pat[sr][sc][tr0][tc0][tr1][tc1][tr2][tc2];
       int len = v >> 2;
-      // debug("%d %d\n", v >> 2, v & 3);
       if (len == 0) break;
       int dir = v & 3;
       sr -= DR[dir];
@@ -1282,7 +1281,7 @@ struct PuzzleSolver {
   }
 
   bool solve_pattern_3_up(int level, int pos) {
-    int top = pos - 2;
+    int top = pos - 1;
     if (er < top || top + EMBED_SIZE_3 <= er || level + EMBED_SIZE_3 <= ec) return false;
     int sr = er - top;
     int sc = ec - level;
@@ -1293,7 +1292,7 @@ struct PuzzleSolver {
     vi cands0;
     vi cands1;
     vi cands2;
-    for (int r = max(0, top); r < min(top + EMBED_SIZE_3, N); ++r) {
+    for (int r = max(level, top); r < min(top + EMBED_SIZE_3, N); ++r) {
       for (int c = (r <= pos + 2 ? level : level + 1); c < min(level + EMBED_SIZE_3, N); ++c) {
         if (tiles[r][c] == t0) {
           cands0.push_back(((r - top) << 3) | (c - level));
@@ -1327,7 +1326,7 @@ struct PuzzleSolver {
   }
 
   bool solve_pattern_3_right(int level, int pos) {
-    int right = pos + 2;
+    int right = pos + 1;
     if (er >= level + EMBED_SIZE_3 || ec > right || ec <= right - EMBED_SIZE_3) return false;
     int sr = right - ec;
     int sc = er - level;
