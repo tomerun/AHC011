@@ -1550,7 +1550,7 @@ struct Solver {
   }
 
   Result solve() {
-    vi best_ans(T * 75 / 100, 0);
+    vi best_ans(T, 0);
     vi best_lens(N - 2, INF);
     vi cur_lens;
     // TreePlacer tree_placer;
@@ -1561,7 +1561,7 @@ struct Solver {
     START_TIMER(0);
     vector<vvi> targets = generate_targets();
     STOP_TIMER(0);
-    vvi best_target;
+    int best_target_idx = 0;
     int turn = 0;
     uint64_t worst_time = 0;
     uint64_t before_time = get_elapsed_msec();
@@ -1570,29 +1570,18 @@ struct Solver {
         debug("total_first_turn:%d\n", turn);
         break;
       }
-      // vvi target_tiles = tree_placer.find();
       vvi target_tiles = targets[turn % targets.size()];
-      if (target_tiles.empty()) {
-        debugStr("faile to find target tree\n");
-      } else {
-        // debug("dist:%d\n", calc_tiles_dist(target_tiles));
-        for (int i = 0; i < 1; ++i) {
-          bool success = false;
-          PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
-          cur_lens.clear();
-          vi ans = puzzle_solver.solve(success, best_lens, cur_lens);
-          if (cur_lens.size() == 1 && cur_lens[0] > best_lens[0] + 30) {
-            break;
-          }
-          if (success) {
-            remove_redundant_moves(ans);
-            if (ans.size() < best_ans.size()) {
-              swap(ans, best_ans);
-              swap(best_lens, cur_lens);
-              best_target = target_tiles;
-              debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
-            }
-          }
+      bool success = false;
+      PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
+      cur_lens.clear();
+      vi ans = puzzle_solver.solve(success, best_lens, cur_lens);
+      if (success) {
+        remove_redundant_moves(ans);
+        if (ans.size() < best_ans.size()) {
+          swap(ans, best_ans);
+          swap(best_lens, cur_lens);
+          best_target_idx = turn % targets.size();
+          debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
         }
       }
       turn++;
@@ -1604,7 +1593,7 @@ struct Solver {
     turn = 0;
     worst_time = 0;
     before_time = get_elapsed_msec();
-    vvi target_tiles = best_target;
+    vvi target_tiles = targets[best_target_idx];
     while (true) {
       if (get_elapsed_msec() + worst_time > TL) {
         debug("total_second_turn:%d\n", turn);
