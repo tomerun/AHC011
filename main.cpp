@@ -1360,7 +1360,7 @@ FOUND:
     is_flipped ^= true;
   }
 
-  vi solve(bool& success, int best_len) {
+  vi solve(bool& success, const vi& best_len, vi& cur_lens) {
     // debugStr("target\n");
     // print_tiles(target);
     // debugStr("tiles\n");
@@ -1368,16 +1368,19 @@ FOUND:
     START_TIMER(1);
     for (int level = 0; level < N - 3; ++level) {
       solve_cw(level);
-      if (ans.size() > best_len) {
+      if (ans.size() > best_len[level] + 20) {
         success = false;
         STOP_TIMER(1);
         return ans;
       }
+      debug("level:%d len:%lu\n", level, ans.size());
+      cur_lens.push_back(ans.size());
       flip();
     }
     STOP_TIMER(1);
     START_TIMER(2);
-    success = solve_whole(best_len);
+    success = solve_whole(best_len.back());
+    cur_lens.push_back(ans.size());
     STOP_TIMER(2);
     return ans;
   }
@@ -1401,6 +1404,8 @@ struct Solver {
 
   Result solve() {
     vi best_ans(T * 75 / 100, 0);
+    vi best_lens(N - 2, INF);
+    vi cur_lens;
     TreePlacer tree_placer;
     vvi initial_tiles;
     for (int i = 0; i < N; ++i) {
@@ -1423,11 +1428,16 @@ struct Solver {
         for (int i = 0; i < 5; ++i) {
           bool success = false;
           PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
-          vi ans = puzzle_solver.solve(success, best_ans.size());
+          cur_lens.clear();
+          vi ans = puzzle_solver.solve(success, best_lens, cur_lens);
+          if (cur_lens.size() == 1 && cur_lens[0] > best_lens[0] + 30) {
+            break;
+          }
           if (success) {
             remove_redundant_moves(ans);
             if (ans.size() < best_ans.size()) {
               swap(ans, best_ans);
+              swap(best_lens, cur_lens);
               debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
             }
           }
@@ -1470,11 +1480,13 @@ struct Solver {
       }
       bool success = false;
       PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
-      vi ans = puzzle_solver.solve(success, best_ans.size());
+      cur_lens.clear();
+      vi ans = puzzle_solver.solve(success, best_lens, cur_lens);
       if (success) {
         remove_redundant_moves(ans);
         if (ans.size() < best_ans.size()) {
           swap(ans, best_ans);
+          swap(best_lens, cur_lens);
           debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
         }
       }
