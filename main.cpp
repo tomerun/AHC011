@@ -283,6 +283,8 @@ void print_tiles(const T& tiles, bool with_sentinel = false) {
 
 constexpr int EMBED_SIZE = 8;
 array<array<int, 1 << (3 * 6)>, EMBED_SIZE - 1> embed_pattern;
+constexpr int EMBED_SIZE_3 = 6;
+array<array<array<array<array<array<array<array<int, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3>, EMBED_SIZE_3> embed_pattern_3;
 
 inline int pack_embed_pos(int sr, int sc, int tr0, int tc0, int tr1, int tc1) {
   return (sr << 15) | (sc << 12) | (tr0 << 9) | (tc0 << 6) | (tr1 << 3) | tc1;
@@ -394,6 +396,78 @@ void precalc_pattern() {
     //   }
     // }
   }
+}
+
+inline int pack_embed_pos_3(int sr, int sc, int tr0, int tc0, int tr1, int tc1, int tr2, int tc2) {
+  return (sr << 21) | (sc << 18) | (tr0 << 15) | (tc0 << 12) | (tr1 << 9) | (tc1 << 6) | (tr2 << 3) | tc2;
+}
+
+void precalc_pattern_3() {
+  auto& pat = embed_pattern_3;
+  vi cur_que = {
+    pack_embed_pos_3(2, 1, 2, 0, 3, 0, 4, 0),
+    pack_embed_pos_3(3, 1, 2, 0, 3, 0, 4, 0),
+    pack_embed_pos_3(4, 1, 2, 0, 3, 0, 4, 0),
+    pack_embed_pos_3(1, 0, 2, 0, 3, 0, 4, 0),
+  };
+  // hack
+  pat[2][1][2][0][3][0][4][0] = -1;
+  pat[3][1][2][0][3][0][4][0] = -1;
+  pat[4][1][2][0][3][0][4][0] = -1;
+  pat[1][0][2][0][3][0][4][0] = -1;
+  vi dirs = {0, 1, 3, 2};
+  for (int dist = 1; !cur_que.empty(); ++dist) {
+    // debug("dist:%d que_size:%lu\n", dist, cur_que.size());
+    vi next_que;
+    for (int p : cur_que) {
+      int sr = p >> 21;
+      int sc = (p >> 18) & 7;
+      int tr0 = (p >> 15) & 7;
+      int tc0 = (p >> 12) & 7;
+      int tr1 = (p >> 9) & 7;
+      int tc1 = (p >> 6) & 7;
+      int tr2 = (p >> 3) & 7;
+      int tc2 = (p >> 0) & 7;
+      for (int dir : dirs) {
+        int nr = sr + DR[dir];
+        int nc = sc + DC[dir];
+        if (nr < 0 || EMBED_SIZE_3 <= nr || nc < 0 || EMBED_SIZE_3 <= nc) continue;
+        if (nc == 0 && nr > 4) continue;
+        int ntr0, ntc0, ntr1, ntc1, ntr2, ntc2;
+        if (nr == tr0 && nc == tc0) {
+          ntr0 = sr;
+          ntc0 = sc;
+        } else {
+          ntr0 = tr0;
+          ntc0 = tc0;
+        }
+        if (nr == tr1 && nc == tc1) {
+          ntr1 = sr;
+          ntc1 = sc;
+        } else {
+          ntr1 = tr1;
+          ntc1 = tc1;
+        }
+        if (nr == tr2 && nc == tc2) {
+          ntr2 = sr;
+          ntc2 = sc;
+        } else {
+          ntr2 = tr2;
+          ntc2 = tc2;
+        }
+        if (pat[nr][nc][ntr0][ntc0][ntr1][ntc1][ntr2][ntc2] == 0) {
+          pat[nr][nc][ntr0][ntc0][ntr1][ntc1][ntr2][ntc2] = (dist << 2) | dir;
+          int np = pack_embed_pos_3(nr, nc, ntr0, ntc0, ntr1, ntc1, ntr2, ntc2);
+          next_que.push_back(np);
+        }
+      }
+    }
+    swap(cur_que, next_que);
+  }
+  pat[2][1][2][0][3][0][4][0] = 0;
+  pat[3][1][2][0][3][0][4][0] = 0;
+  pat[4][1][2][0][3][0][4][0] = 0;
+  pat[1][0][2][0][3][0][4][0] = 0;
 }
 
 // maximize
@@ -966,8 +1040,7 @@ struct PuzzleSolver {
       for (int c = (r <= pos + 1 ? level : level + 1); c < min(level + EMBED_SIZE, N); ++c) {
         if (tiles[r][c] == target[pos][level]) {
           cands0.push_back(((r - top) << 3) | (c - level));
-        }
-        if (tiles[r][c] == target[pos + 1][level]) {
+        } else if (tiles[r][c] == target[pos + 1][level]) {
           cands1.push_back(((r - top) << 3) | (c - level));
         }
       }
@@ -1030,8 +1103,7 @@ struct PuzzleSolver {
       for (int c = (r == level ? pos - 1 : max(level + 1, right - EMBED_SIZE + 1)); c <= right; ++c) {
         if (tiles[r][c] == target[level][pos]) {
           cands0.push_back(((right - c) << 3) | (r - level));
-        }
-        if (tiles[r][c] == target[level][pos - 1]) {
+        } else if (tiles[r][c] == target[level][pos - 1]) {
           cands1.push_back(((right - c) << 3) | (r - level));
         }
       }
@@ -1062,7 +1134,6 @@ struct PuzzleSolver {
       }
     }
     if (best_len == INF) {
-      debugStr("not found\n");
       return false;
     }
     int len = recover_pattern(shift, sr, sc, (best_st >> 9) & 7, (best_st >> 6) & 7, (best_st >> 3) & 7, (best_st >> 0) & 7);
@@ -1082,35 +1153,272 @@ struct PuzzleSolver {
     return true;
   }
 
-  void solve_cw(int level) {
-    for (int i = N - 1; i >= level + 2; --i) {
-      bool found_pattern = false;
-      if (i > level + 2 && (rnd.nextUInt() & 7)) {
-        found_pattern = solve_pattern_up(level, i - 1);
+  int recover_pattern_3(int sr, int sc, int tr0, int tc0, int tr1, int tc1, int tr2, int tc2) {
+    // debugStr("recover_pattern_3\n");
+    const auto& pat = embed_pattern_3;
+    int ri = 0;
+    while (true) {
+      // debug("%d %d %d %d %d %d %d %d\n", sr, sc, tr0, tc0, tr1, tc1, tr2, tc2);
+      int v = pat[sr][sc][tr0][tc0][tr1][tc1][tr2][tc2];
+      int len = v >> 2;
+      // debug("%d %d\n", v >> 2, v & 3);
+      if (len == 0) break;
+      int dir = v & 3;
+      sr -= DR[dir];
+      sc -= DC[dir];
+      if (sr == tr0 && sc == tc0) {
+        tr0 += DR[dir];
+        tc0 += DC[dir];
+      } else if (sr == tr1 && sc == tc1) {
+        tr1 += DR[dir];
+        tc1 += DC[dir];
+      } else if (sr == tr2 && sc == tc2) {
+        tr2 += DR[dir];
+        tc2 += DC[dir];
       }
-      if (found_pattern) {
-        assert(tiles[i][level] == target[i][level]);
-        assert(tiles[i - 1][level] == target[i - 1][level]);
-        protect[i][level] = true;
-        protect[i - 1][level] = true;
-        --i;
-      } else {
-        convey(level, i, level, target[i][level]);
-        protect[i][level] = true;
+      pattern_result[ri++] = dir ^ 2;
+    }
+    return ri;
+  }
+
+  int find_best_pos_pattern_3(
+    int sr, int sc, int t0, int t1, int t2,
+    const vi& cands0, const vi& cands1, const vi& cands2, array<int, 6>& best_pos
+  ) {
+    const auto& pat = embed_pattern_3[sr][sc];
+    int best_len = INF;
+    if (t0 == t1 && t0 == t2) {
+      for (int i = 0; i < cands0.size(); ++i) {
+        int r0 = cands0[i] >> 3;
+        int c0 = cands0[i] & 7;
+        for (int j = 0; j < cands0.size(); ++j) {
+          if (i == j) continue;
+          int r1 = cands0[j] >> 3;
+          int c1 = cands0[j] & 7;
+          for (int k = 0; k < cands0.size(); ++k) {
+            if (k == i || k == j) continue;
+            int r2 = cands0[k] >> 3;
+            int c2 = cands0[k] & 7;
+            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2];
+              best_pos = {r0, c0, r1, c1, r2, c2};
+            }
+          }
+        }
+      }
+    } else if (t0 == t1) {
+      for (int i = 0; i < cands0.size(); ++i) {
+        int r0 = cands0[i] >> 3;
+        int c0 = cands0[i] & 7;
+        for (int j = 0; j < cands0.size(); ++j) {
+          if (i == j) continue;
+          int r1 = cands0[j] >> 3;
+          int c1 = cands0[j] & 7;
+          for (int k = 0; k < cands2.size(); ++k) {
+            int r2 = cands2[k] >> 3;
+            int c2 = cands2[k] & 7;
+            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2];
+              best_pos = {r0, c0, r1, c1, r2, c2};
+            }
+          }
+        }
+      }
+    } else if (t0 == t2) {
+      for (int i = 0; i < cands0.size(); ++i) {
+        int r0 = cands0[i] >> 3;
+        int c0 = cands0[i] & 7;
+        for (int j = 0; j < cands0.size(); ++j) {
+          if (i == j) continue;
+          int r2 = cands0[j] >> 3;
+          int c2 = cands0[j] & 7;
+          for (int k = 0; k < cands1.size(); ++k) {
+            int r1 = cands1[k] >> 3;
+            int c1 = cands1[k] & 7;
+            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2];
+              best_pos = {r0, c0, r1, c1, r2, c2};
+            }
+          }
+        }
+      }
+    } else if (t1 == t2) {
+      for (int i = 0; i < cands1.size(); ++i) {
+        int r1 = cands1[i] >> 3;
+        int c1 = cands1[i] & 7;
+        for (int j = 0; j < cands1.size(); ++j) {
+          if (i == j) continue;
+          int r2 = cands1[j] >> 3;
+          int c2 = cands1[j] & 7;
+          for (int k = 0; k < cands0.size(); ++k) {
+            int r0 = cands0[k] >> 3;
+            int c0 = cands0[k] & 7;
+            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2];
+              best_pos = {r0, c0, r1, c1, r2, c2};
+            }
+          }
+        }
+      }
+    } else {
+      for (int i = 0; i < cands0.size(); ++i) {
+        int r0 = cands0[i] >> 3;
+        int c0 = cands0[i] & 7;
+        for (int j = 0; j < cands1.size(); ++j) {
+          int r1 = cands1[j] >> 3;
+          int c1 = cands1[j] & 7;
+          for (int k = 0; k < cands2.size(); ++k) {
+            int r2 = cands2[k] >> 3;
+            int c2 = cands2[k] & 7;
+            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2];
+              best_pos = {r0, c0, r1, c1, r2, c2};
+            }
+          }
+        }
       }
     }
-    {
+    return best_len;
+  }
+
+  bool solve_pattern_3_up(int level, int pos) {
+    int top = pos - 2;
+    if (er < top || top + EMBED_SIZE_3 <= er) return false;
+    int sr = er - top;
+    int sc = ec - level;
+    // debug("level:%d top:%d sr:%d sc:%d\n", level, top, sr, sc);
+    int t0 = target[pos][level];
+    int t1 = target[pos + 1][level];
+    int t2 = target[pos + 2][level];
+    vi cands0;
+    vi cands1;
+    vi cands2;
+    for (int r = max(0, top); r < min(top + EMBED_SIZE_3, N); ++r) {
+      for (int c = (r <= pos + 2 ? level : level + 1); c < min(level + EMBED_SIZE_3, N); ++c) {
+        if (tiles[r][c] == t0) {
+          cands0.push_back(((r - top) << 3) | (c - level));
+        } else if (tiles[r][c] == t1) {
+          cands1.push_back(((r - top) << 3) | (c - level));
+        } else if (tiles[r][c] == t2) {
+          cands2.push_back(((r - top) << 3) | (c - level));
+        }
+      }
+    }
+    array<int, 6> best_pos;
+    int best_len = find_best_pos_pattern_3(sr, sc, t0, t1, t2, cands0, cands1, cands2, best_pos);
+    if (best_len == INF) {
+      return false;
+    }
+    int len = recover_pattern_3(sr, sc, best_pos[0], best_pos[1], best_pos[2], best_pos[3], best_pos[4], best_pos[5]);
+    for (int i = 0; i < len; ++i) {
+      int dir = pattern_result[i];
+      int nr = er + DR[dir];
+      int nc = ec + DC[dir];
+      if (nr == N || nc == N || nr < level) {
+        // debug("fail_up %d %d %d\n", nr, nc, len);
+        for (int j = i - 1; j >= 0; --j) {
+          step(pattern_result[j] ^ 2);
+        }
+        return false;
+      }
+      step(dir);
+    }
+    return true;
+  }
+
+  bool solve_pattern_3_right(int level, int pos) {
+    int right = pos + 2;
+    if (ec > right || ec <= right - EMBED_SIZE_3) return false;
+    int sr = right - ec;
+    int sc = er - level;
+    // debug("level:%d top:%d sr:%d sc:%d\n", level, top, sr, sc);
+    int t0 = target[level][pos];
+    int t1 = target[level][pos - 1];
+    int t2 = target[level][pos - 2];
+    vi cands0;
+    vi cands1;
+    vi cands2;
+    for (int r = level; r < min(level + EMBED_SIZE_3, N); ++r) {
+      for (int c = (r == level ? pos - 2 : max(level + 1, right - EMBED_SIZE_3 + 1)); c <= min(right, N - 1); ++c) {
+        if (tiles[r][c] == t0) {
+          cands0.push_back(((right - c) << 3) | (r - level));
+        } else if (tiles[r][c] == t1) {
+          cands1.push_back(((right - c) << 3) | (r - level));
+        } else if (tiles[r][c] == t2) {
+          cands2.push_back(((right - c) << 3) | (r - level));
+        }
+      }
+    }
+    array<int, 6> best_pos;
+    int best_len = find_best_pos_pattern_3(sr, sc, t0, t1, t2, cands0, cands1, cands2, best_pos);
+    if (best_len == INF) {
+      return false;
+    }
+    int len = recover_pattern_3(sr, sc, best_pos[0], best_pos[1], best_pos[2], best_pos[3], best_pos[4], best_pos[5]);
+    for (int i = 0; i < len; ++i) {
+      int dir = (pattern_result[i] + 1) & 3;
+      int nr = er + DR[dir];
+      int nc = ec + DC[dir];
+      if (nr == N || nc == N || nc <= level) {
+        // debug("fail_right %d %d %d\n", nr, nc, len);
+        for (int j = i - 1; j >= 0; --j) {
+          step((pattern_result[j] + 3) & 3);
+        }
+        return false;
+      }
+      step(dir);
+    }
+    return true;
+  }
+
+  void solve_cw(int level) {
+    for (int i = N - 1; i >= level + 2; --i) {
+      if (tiles[i][level] == target[i][level]) {
+        protect[i][level] = true;
+        continue;
+      }
+      if (i != level + 3 && (rnd.nextUInt() & 7)) {
+        // debugStr("tiles\n");
+        // print_tiles(tiles);
+        bool found_pattern = solve_pattern_3_up(level, i - 2);
+        if (found_pattern) {
+          // debugStr("target\n");
+          // print_tiles(target);
+          // debugStr("tiles\n");
+          // print_tiles(tiles);
+          // debugln();
+          assert(tiles[i][level] == target[i][level]);
+          assert(tiles[i - 1][level] == target[i - 1][level]);
+          assert(tiles[i - 2][level] == target[i - 2][level]);
+          protect[i][level] = true;
+          protect[i - 1][level] = true;
+          protect[i - 2][level] = true;
+          i -= 2;
+          continue;
+        }
+      }
+      if (i > level + 2 && (rnd.nextUInt() & 7)) {
+        bool found_pattern = solve_pattern_up(level, i - 1);
+        if (found_pattern) {
+          assert(tiles[i][level] == target[i][level]);
+          assert(tiles[i - 1][level] == target[i - 1][level]);
+          protect[i][level] = true;
+          protect[i - 1][level] = true;
+          --i;
+          continue;
+        }
+      }
+      convey(level, i, level, target[i][level]);
+      protect[i][level] = true;
+    }
+    if (tiles[level][level] != target[level][level] || tiles[level + 1][level] != target[level + 1][level]) {
       bool found_pattern = solve_pattern_up(level, level);
       if (found_pattern) {
         assert(tiles[level][level] == target[level][level]);
         assert(tiles[level + 1][level] == target[level + 1][level]);
-        protect[level + 1][level] = true;
-        protect[level][level] = true;
       } else {
         if (tiles[level + 1][level] == target[level + 1][level] && tiles[level][level] == target[level][level]) {
           // ok
-          protect[level + 1][level] = true;
-          protect[level][level] = true;
         } else {
           convey(level, level + 1, level, target[level][level]);
           protect[level + 1][level] = true;
@@ -1149,28 +1457,41 @@ struct PuzzleSolver {
               step(RIGHT);
             }
           }
-          protect[level][level] = true;
         }
       }
     }
+    protect[level + 1][level] = true;
+    protect[level][level] = true;
 
     for (int i = level + 1; i < N - 2; ++i) {
-      bool found_pattern = false;
+      if (i != N - 4 && (rnd.nextUInt() & 7)) {
+        bool found_pattern = solve_pattern_3_right(level, i + 2);
+        if (found_pattern) {
+          assert(tiles[level][i] == target[level][i]);
+          assert(tiles[level][i + 1] == target[level][i + 1]);
+          assert(tiles[level][i + 2] == target[level][i + 2]);
+          protect[level][i] = true;
+          protect[level][i + 1] = true;
+          protect[level][i + 2] = true;
+          i += 2;
+          continue;
+        }
+      }
       if (i < N - 3 && (rnd.nextUInt() & 7)) {
-        found_pattern = solve_pattern_right(level, i + 1);
+        bool found_pattern = solve_pattern_right(level, i + 1);
+        if (found_pattern) {
+          assert(tiles[level][i] == target[level][i]);
+          assert(tiles[level][i + 1] == target[level][i + 1]);
+          protect[level][i] = true;
+          protect[level][i + 1] = true;
+          ++i;
+          continue;
+        }
       }
-      if (found_pattern) {
-        assert(tiles[level][i] == target[level][i]);
-        assert(tiles[level][i + 1] == target[level][i + 1]);
-        protect[level][i] = true;
-        protect[level][i + 1] = true;
-        ++i;
-      } else {
-        convey(level, level, i, target[level][i]);
-        protect[level][i] = true;
-      }
+      convey(level, level, i, target[level][i]);
+      protect[level][i] = true;
     }
-    {
+    if (tiles[level][N - 1] != target[level][N - 1] || tiles[level][N - 2] != target[level][N - 2]) {
       bool found_pattern = solve_pattern_right(level, N - 1);
       if (found_pattern) {
         assert(tiles[level][N - 2] == target[level][N - 2]);
@@ -1499,10 +1820,12 @@ struct Solver {
     int prev_dist = INF;
     vvi prev_target;
     for (int i = 0; ; ++i) {
+      // if (penas.size() > 100) break;
       if (get_elapsed_msec() > TL / 3) {
         break;
       }
       for (int j = 0; j < 1000; ++j) {
+        // if (penas.size() > 100) break;
         if (get_elapsed_msec() > TL / 3) {
           debug("gen turn:%d %d\n", i, j);
           break;
@@ -1680,7 +2003,10 @@ int main() {
   for (int i = 0; i < rot; ++i) {
     rot_orig_tiles();
   }
+  START_TIMER(7);
   precalc_pattern();
+  precalc_pattern_3();
+  STOP_TIMER(7);
 
   auto solver = unique_ptr<Solver>(new Solver());
   Result res = solver->solve();
