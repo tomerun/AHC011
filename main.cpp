@@ -477,12 +477,10 @@ struct TreePlacer {
   vi orig_count;
   vi count;
   vvi bfs_from;
-  vvi bfs_cnt;
   vvi tiles;
-  int bfs_counter;
   vector<pair<int, int>> es;
 
-  TreePlacer() : bfs_counter(0) {
+  TreePlacer() {
     orig_count.assign(16, 0);
     count.assign(16, 0);
     for (int i = 0; i < N; ++i) {
@@ -491,7 +489,6 @@ struct TreePlacer {
       }
     }
     bfs_from.assign(N + 2, vi(N + 2, 0));
-    bfs_cnt.assign(N + 2, vi(N + 2, 0));
     tiles.assign(N + 2, vi(N + 2, EMPTY));
     for (int i = 0; i < N; ++i) {
       for (int j = 0; j < ((i == N - 1) ? N - 2 : N - 1); ++j) {
@@ -650,33 +647,35 @@ struct TreePlacer {
       const int ntile_new = ntile | (1 << (dir ^ 2));
       increase(diff, tile_new);
       increase(diff, ntile_new);
-      bfs_counter++;
       bfs_que.clear();
       bfs_que.push_back((tiles[cr][cc] << 16) | (cr << 8) | cc);
-      bfs_cnt[cr][cc] = bfs_counter;
       int qi = 0;
       // debug("bfs cr:%d cc:%d nr:%d nc:%d\n", cr, cc, nr, nc);
       while (true) {
         int r0 = (bfs_que[qi] >> 8) & 0xFF;
         int c0 = bfs_que[qi] & 0xFF;
-        if (r0 == nr && c0 == nc) break;
         int t = bfs_que[qi] >> 16;
         while (t) {
           int i = __builtin_ctz(t);
           t &= t - 1;
           int r1 = r0 + DR[i];
           int c1 = c0 + DC[i];
-          bfs_cnt[r1][c1] = bfs_counter;
           bfs_from[r1][c1] = i ^ 2;
-          int t2 = tiles[r1][c1];
-          bfs_que.push_back(((t2 ^ (1 << (i ^ 2))) << 16) | (r1 << 8) | c1);
+          if (r1 == nr && c1 == nc) {
+            goto END_BFS;
+          }
+          int t2 = tiles[r1][c1] ^ (1 << (i ^ 2));
+          if (t2) {
+            bfs_que.push_back((t2 << 16) | (r1 << 8) | c1);
+          }
         }
         qi++;
       }
+END_BFS:
       tiles[cr][cc] |= 1 << dir;
       tiles[nr][nc] |= 1 << (dir ^ 2);
       const bool force = !reset && turn < 1;
-      const int cut_pos = force ? find_cut_pos<false>(nr, nc, cr, cc) : find_cut_pos<true>(nr, nc, cr, cc);
+      const int cut_pos = force ? find_cut_pos<true>(nr, nc, cr, cc) : find_cut_pos<true>(nr, nc, cr, cc);
       const int cut_r = cut_pos >> 8;
       const int cut_c = cut_pos & 0xFF;
       const int prev_dir = bfs_from[cut_r][cut_c];
