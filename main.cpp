@@ -475,13 +475,16 @@ int verify(const vector<int>& moves) {
 
 struct TreePlacer {
   vi orig_count;
+  vi count;
   vvi bfs_from;
   vvi bfs_cnt;
   vvi tiles;
   int bfs_counter;
+  vector<pair<int, int>> es;
 
   TreePlacer() : bfs_counter(0) {
     orig_count.assign(16, 0);
+    count.assign(16, 0);
     for (int i = 0; i < N; ++i) {
       for (int j = 0; j < N; ++j) {
         orig_count[orig_tiles[i][j]]++;
@@ -489,11 +492,7 @@ struct TreePlacer {
     }
     bfs_from.assign(N + 2, vi(N + 2, 0));
     bfs_cnt.assign(N + 2, vi(N + 2, 0));
-  }
-
-  void create_random() {
     tiles.assign(N + 2, vi(N + 2, EMPTY));
-    vector<pair<int, int>> es;
     for (int i = 0; i < N; ++i) {
       for (int j = 0; j < ((i == N - 1) ? N - 2 : N - 1); ++j) {
         es.push_back({i * N + j, i * N + j + 1});
@@ -504,8 +503,15 @@ struct TreePlacer {
         es.push_back({i * N + j, (i + 1) * N + j});
       }
     }
+    create_random();
+  }
+
+  void create_random() {
     randomize(es);
     UnionFind uf(N * N - 1);
+    for (int i = 1; i <= N; ++i) {
+      fill(tiles[i].begin(), tiles[i].end(), EMPTY);
+    }
     for (const auto& e : es) {
       if (uf.find(e.first, e.second)) continue;
       uf.unite(e.first, e.second);
@@ -521,9 +527,15 @@ struct TreePlacer {
         tiles[r1][c1] |= 1 << UP;
       }
     }
+    fill(count.begin(), count.end(), 0);
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+        count[tiles[i + 1][j + 1]]++;
+      }
+    }
   }
 
-  inline void decrease(vi& count, int& diff, int v) {
+  inline void decrease(int& diff, int v) {
     if (count[v] > orig_count[v]) {
       diff--;
     } else {
@@ -532,7 +544,7 @@ struct TreePlacer {
     count[v]--;
   }
 
-  inline void increase(vi& count, int& diff, int v) {
+  inline void increase(int& diff, int v) {
     if (count[v] < orig_count[v]) {
       diff--;
     } else {
@@ -541,7 +553,8 @@ struct TreePlacer {
     count[v]++;
   }
 
-  int find_cut_pos(const vi& count, int sr, int sc, int gr, int gc) {
+  template <bool greedy>
+  int find_cut_pos(int sr, int sc, int gr, int gc) {
     // debug("find_cut_pos sr:%d sc:%d gr:%d gc:%d\n", sr, sc, gr, gc);
     static vi cut_pos_cands;
     cut_pos_cands.clear();
@@ -556,24 +569,28 @@ struct TreePlacer {
       int tile1 = tiles[ncut_r][ncut_c];
       assert(tile0 & (1 << prev_dir));
       assert(tile1 & (1 << (prev_dir ^ 2)));
-      int cut_diff = 0;
-      if (count[tile0] > orig_count[tile0]) {
-        cut_diff--;
-      }
-      if (count[tile1] > orig_count[tile1]) {
-        cut_diff--;
-      }
-      if (count[tile0 ^ (1 << prev_dir)] < orig_count[tile0 ^ (1 << prev_dir)]) {
-        cut_diff--;
-      }
-      if (count[tile1 ^ (1 << (prev_dir ^ 2))] < orig_count[tile1 ^ (1 << (prev_dir ^ 2))]) {
-        cut_diff--;
-      }
-      if (cut_diff < cut_diff_min) {
-        cut_diff_min = cut_diff;
-        cut_pos_cands.clear();
-        cut_pos_cands.push_back((cut_r << 8) | cut_c);
-      } else if (cut_diff == cut_diff_min) {
+      if (greedy) {
+        int cut_diff = 0;
+        if (count[tile0] > orig_count[tile0]) {
+          cut_diff--;
+        }
+        if (count[tile1] > orig_count[tile1]) {
+          cut_diff--;
+        }
+        if (count[tile0 ^ (1 << prev_dir)] < orig_count[tile0 ^ (1 << prev_dir)]) {
+          cut_diff--;
+        }
+        if (count[tile1 ^ (1 << (prev_dir ^ 2))] < orig_count[tile1 ^ (1 << (prev_dir ^ 2))]) {
+          cut_diff--;
+        }
+        if (cut_diff < cut_diff_min) {
+          cut_diff_min = cut_diff;
+          cut_pos_cands.clear();
+          cut_pos_cands.push_back((cut_r << 8) | cut_c);
+        } else if (cut_diff == cut_diff_min) {
+          cut_pos_cands.push_back((cut_r << 8) | cut_c);
+        }
+      } else {
         cut_pos_cands.push_back((cut_r << 8) | cut_c);
       }
       cut_r = ncut_r;
@@ -582,13 +599,16 @@ struct TreePlacer {
     return cut_pos_cands[rnd.nextUInt(cut_pos_cands.size())];
   }
 
-  vvi find() {
-    create_random();
-    vi count(16, 0);
+  void set(const vvi& target) {
     for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        count[tiles[i + 1][j + 1]]++;
-      }
+      copy(target[i].begin(), target[i].end(), tiles[i + 1].begin() + 1);
+    }
+    count = orig_count;
+  }
+
+  vvi find(bool reset=false) {
+    if (reset) {
+      create_random();
     }
     int cur_diff = 0;
     for (int i = 1; i <= 15; ++i) {
@@ -624,12 +644,12 @@ struct TreePlacer {
       const int nc = cc + DC[dir];
       const int ntile = tiles[nr][nc];
       int diff = 0;
-      decrease(count, diff, tile);
-      decrease(count, diff, ntile);
+      decrease(diff, tile);
+      decrease(diff, ntile);
       const int tile_new = tile | (1 << dir);
       const int ntile_new = ntile | (1 << (dir ^ 2));
-      increase(count, diff, tile_new);
-      increase(count, diff, ntile_new);
+      increase(diff, tile_new);
+      increase(diff, ntile_new);
       bfs_counter++;
       bfs_que.clear();
       bfs_que.push_back((cr << 8) | cc);
@@ -641,10 +661,8 @@ struct TreePlacer {
         int r0 = bfs_que[qi] >> 8;
         int c0 = bfs_que[qi] & 0xFF;
         if (r0 == nr && c0 == nc) break;
-        int t = tiles[r0][c0];
-        while (t) {
-          int i = __builtin_ctz(t);
-          t &= t - 1;
+        for (int i = 0; i < 4; ++i) {
+          if (!(tiles[r0][c0] & (1 << i))) continue;
           int r1 = r0 + DR[i];
           int c1 = c0 + DC[i];
           if (bfs_cnt[r1][c1] == bfs_counter) continue;
@@ -656,17 +674,18 @@ struct TreePlacer {
       }
       tiles[cr][cc] |= 1 << dir;
       tiles[nr][nc] |= 1 << (dir ^ 2);
-      const int cut_pos = find_cut_pos(count, nr, nc, cr, cc);
+      const bool force = !reset && turn < 1;
+      const int cut_pos = force ? find_cut_pos<false>(nr, nc, cr, cc) : find_cut_pos<true>(nr, nc, cr, cc);
       const int cut_r = cut_pos >> 8;
       const int cut_c = cut_pos & 0xFF;
       const int prev_dir = bfs_from[cut_r][cut_c];
       const int ncut_r = cut_r + DR[prev_dir];
       const int ncut_c = cut_c + DC[prev_dir];
-      decrease(count, diff, tiles[cut_r][cut_c]);
-      decrease(count, diff, tiles[ncut_r][ncut_c]);
-      increase(count, diff, tiles[cut_r][cut_c] ^ (1 << prev_dir));
-      increase(count, diff, tiles[ncut_r][ncut_c] ^ (1 << (prev_dir ^ 2)));
-      if (accept(-diff, cooler)) {
+      decrease(diff, tiles[cut_r][cut_c]);
+      decrease(diff, tiles[ncut_r][ncut_c]);
+      increase(diff, tiles[cut_r][cut_c] ^ (1 << prev_dir));
+      increase(diff, tiles[ncut_r][ncut_c] ^ (1 << (prev_dir ^ 2)));
+      if (force || accept(-diff, cooler)) {
         tiles[cut_r][cut_c] ^= 1 << prev_dir;
         tiles[ncut_r][ncut_c] ^= 1 << (prev_dir ^ 2);
         cur_diff += diff;
@@ -691,11 +710,11 @@ struct TreePlacer {
     }
     if (cur_diff == 0) {
       // remove sentinel
-      vvi ret;
+      vvi target_tiles;
       for (int i = 1; i <= N; ++i) {
-        ret.push_back(vi(tiles[i].begin() + 1, tiles[i].begin() + N + 1));
+        target_tiles.push_back(vi(tiles[i].begin() + 1, tiles[i].begin() + N + 1));
       }
-      return ret;
+      return target_tiles;
     } else {
       return vvi();
     }
@@ -1368,7 +1387,7 @@ FOUND:
     START_TIMER(1);
     for (int level = 0; level < N - 3; ++level) {
       solve_cw(level);
-      debug("level:%d len:%lu\n", level, ans.size());
+      // debug("level:%d len:%lu\n", level, ans.size());
       if (ans.size() > best_len[level] + 20) {
         success = false;
         STOP_TIMER(1);
@@ -1396,34 +1415,62 @@ int calc_tiles_dist(const vvi target_tiles) {
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < N; ++j) {
       orig_pos[orig_tiles[i][j]].push_back((i << 4) | j);
-      if (i < 3 || j < 3) {
-        target_pos[target_tiles[i][j]].push_back((i << 4) | j);
-      }
+      target_pos[target_tiles[i][j]].push_back((i << 4) | j);
     }
   }
   int sum = 0;
   for (int i = 1; i < 16; ++i) {
     if (target_pos[i].empty()) continue;
-    int n = orig_pos[i].size();
-    vi dp = vi(1 << n, INF);
-    dp[0] = 0;
-    for (int j = 0; j < target_pos[i].size(); ++j) {
-      for (int k = 0; k < dp.size(); ++k) {
-        if (dp[k] == INF) continue;
-        if (__builtin_popcount(k) != j) continue;
-        for (int l = 0; l < n; ++l) {
-          if (k & (1 << l)) continue;
-          dp[k | (1 << l)] = min(dp[k | (1 << l)], dp[k] + pos_dist(target_pos[i][j], orig_pos[i][l]));
+    int n = target_pos[i].size();
+    int m = orig_pos[i].size();
+    vi l2r(n, -1);
+    vi r2l(m, -1);
+    vvi dists(n, vi(m, 0));
+    for (int j = 0; j < n; ++j) {
+      for (int k = 0; k < m; ++k) {
+        dists[j][k] = pos_dist(target_pos[i][j], orig_pos[i][k]);
+      }
+    }
+    int pena = 0;
+    for (int j = 0; j < n; ++j) {
+      int min = INF;
+      int mi = 0;
+      for (int k = 0; k < m; ++k) {
+        if (r2l[k] != -1) continue;
+        if (dists[j][k] < min) {
+          min = dists[j][k];
+          mi = k;
+        }
+      }
+      l2r[j] = mi;
+      r2l[mi] = j;
+      pena += min;
+    }
+    for (int turn = 0; turn < (n - 1) * m * 2; ++turn) {
+      int i0 = rnd.nextUInt(n);
+      int j0 = rnd.nextUInt(m - 1);
+      if (j0 >= l2r[i0]) j0++;
+      if (r2l[j0] == -1) {
+        if (dists[i0][j0] <= dists[i0][l2r[i0]]) {
+          pena += dists[i0][j0] - dists[i0][l2r[i0]];
+          r2l[l2r[i0]] = -1;
+          l2r[i0] = j0;
+          r2l[j0] = i0;
+        }
+      } else {
+        int i1 = r2l[j0];
+        int j1 = l2r[i0];
+        int diff = dists[i0][j0] + dists[i1][j1] - dists[i0][j1] - dists[i1][j0];
+        if (diff <= 0) {
+          l2r[i0] = j0;
+          l2r[i1] = j1;
+          r2l[j0] = i0;
+          r2l[j1] = i1;
+          pena += diff;
         }
       }
     }
-    int cur_pena = INF;
-    for (int j = 0; j < dp.size(); ++j) {
-      if (__builtin_popcount(j) == target_pos[i].size()) {
-        cur_pena = min(cur_pena, dp[j]);
-      }
-    }
-    sum += cur_pena;
+    sum += pena;
   }
   return sum;
 }
@@ -1444,15 +1491,77 @@ struct Solver {
     swap(moves, moves_tmp);
   }
 
+  vector<vvi> generate_targets() {
+    unordered_set<uint64_t> visited;
+    TreePlacer tree_placer;
+    vector<vvi> targets;
+    vector<pair<int, int>> penas;
+    int prev_dist = INF;
+    vvi prev_target;
+    for (int i = 0; ; ++i) {
+      if (get_elapsed_msec() > TL / 3) {
+        break;
+      }
+      for (int j = 0; j < 1000; ++j) {
+        if (get_elapsed_msec() > TL / 3) {
+          debug("gen turn:%d %d\n", i, j);
+          break;
+        }
+        vvi target = tree_placer.find(j == 0);
+        if (j == 0) {
+          prev_target = target;
+        }
+        uint64_t hash = 0;
+        for (int r = 0; r < N; ++r) {
+          for (int c = 0; c < N; ++c) {
+            hash ^= cell_hash[r][c][target[r][c]];
+          }
+        }
+        if (visited.count(hash)) {
+          continue;
+        }
+        visited.insert(hash);
+        START_TIMER(6);
+        int d = calc_tiles_dist(target);
+        penas.push_back({d, (int)targets.size()});
+        STOP_TIMER(6);
+        targets.push_back(target);
+        if (d <= prev_dist) {
+          prev_dist = d;
+          prev_target = target;
+        } else {
+          tree_placer.set(prev_target);
+        }
+      }
+    }
+    const int CNT = 1000;
+    debug("count:%lu\n", penas.size());
+    if (penas.size() > CNT) {
+      vector<vvi> ret(CNT);
+      nth_element(penas.begin(), penas.begin() + CNT, penas.end());
+      for (int i = 0; i < CNT; ++i) {
+        // debug("dist:%d\n", penas[i].first);
+        swap(ret[i], targets[penas[i].second]);
+      }
+      return ret;
+    } else {
+      return targets;
+    }
+  }
+
   Result solve() {
     vi best_ans(T * 75 / 100, 0);
     vi best_lens(N - 2, INF);
     vi cur_lens;
-    TreePlacer tree_placer;
+    // TreePlacer tree_placer;
     vvi initial_tiles;
     for (int i = 0; i < N; ++i) {
       initial_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
     }
+    START_TIMER(0);
+    vector<vvi> targets = generate_targets();
+    STOP_TIMER(0);
+    vvi best_target;
     int turn = 0;
     uint64_t worst_time = 0;
     uint64_t before_time = get_elapsed_msec();
@@ -1461,14 +1570,13 @@ struct Solver {
         debug("total_first_turn:%d\n", turn);
         break;
       }
-      START_TIMER(0);
-      vvi target_tiles = tree_placer.find();
-      STOP_TIMER(0);
+      // vvi target_tiles = tree_placer.find();
+      vvi target_tiles = targets[turn % targets.size()];
       if (target_tiles.empty()) {
         debugStr("faile to find target tree\n");
       } else {
         // debug("dist:%d\n", calc_tiles_dist(target_tiles));
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < 1; ++i) {
           bool success = false;
           PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
           cur_lens.clear();
@@ -1481,6 +1589,7 @@ struct Solver {
             if (ans.size() < best_ans.size()) {
               swap(ans, best_ans);
               swap(best_lens, cur_lens);
+              best_target = target_tiles;
               debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
             }
           }
@@ -1495,27 +1604,7 @@ struct Solver {
     turn = 0;
     worst_time = 0;
     before_time = get_elapsed_msec();
-    vvi target_tiles;
-    for (int i = 0; i < N; ++i) {
-      target_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
-    }
-    int er = 0;
-    int ec = 0;
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < N; ++j) {
-        if (initial_tiles[i][j] == EMPTY) {
-          er = i;
-          ec = j;
-        }
-      }
-    }
-    for (int dir : best_ans) {
-      int nr = er + DR[dir];
-      int nc = ec + DC[dir];
-      swap(target_tiles[er][ec], target_tiles[nr][nc]);
-      er = nr;
-      ec = nc;
-    }
+    vvi target_tiles = best_target;
     while (true) {
       if (get_elapsed_msec() + worst_time > TL) {
         debug("total_second_turn:%d\n", turn);
