@@ -1283,7 +1283,7 @@ struct PuzzleSolver {
 
   bool solve_pattern_3_up(int level, int pos) {
     int top = pos - 2;
-    if (er < top || top + EMBED_SIZE_3 <= er) return false;
+    if (er < top || top + EMBED_SIZE_3 <= er || level + EMBED_SIZE_3 <= ec) return false;
     int sr = er - top;
     int sc = ec - level;
     // debug("level:%d top:%d sr:%d sc:%d\n", level, top, sr, sc);
@@ -1328,10 +1328,10 @@ struct PuzzleSolver {
 
   bool solve_pattern_3_right(int level, int pos) {
     int right = pos + 2;
-    if (ec > right || ec <= right - EMBED_SIZE_3) return false;
+    if (er >= level + EMBED_SIZE_3 || ec > right || ec <= right - EMBED_SIZE_3) return false;
     int sr = right - ec;
     int sc = er - level;
-    // debug("level:%d top:%d sr:%d sc:%d\n", level, top, sr, sc);
+    // debug("level:%d right:%d sr:%d sc:%d\n", level, right, sr, sc);
     int t0 = target[level][pos];
     int t1 = target[level][pos - 1];
     int t2 = target[level][pos - 2];
