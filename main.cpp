@@ -263,6 +263,7 @@ bool has_edge(const T& tiles, int r, int c, int dir) {
 
 template<class T>
 void randomize(vector<T>& v) {
+  if (v.size() <= 1) return;
   for (int i = 0; i < v.size() - 1; ++i) {
     int pos = rnd.nextUInt(v.size() - i) + i;
     swap(v[i], v[pos]);
@@ -1073,13 +1074,15 @@ struct PuzzleSolver {
     const int shift = pos - top;
     int best_len = INF;
     int best_st = 0;
+    randomize(cands0);
+    randomize(cands1);
     if (target[pos][level] == target[pos + 1][level]) {
       for (int i = 0; i < cands0.size(); ++i) {
         for (int j = 0; j < cands0.size(); ++j) {
           if (i == j) continue;
           int st = sp | (cands0[i] << 6) | cands0[j];
-          if (embed_pattern[shift][st] < best_len) {
-            best_len = embed_pattern[shift][st];
+          if ((embed_pattern[shift][st] >> 2) < best_len) {
+            best_len = embed_pattern[shift][st] >> 2;
             best_st = st;
           }
         }
@@ -1088,8 +1091,8 @@ struct PuzzleSolver {
       for (int i = 0; i < cands0.size(); ++i) {
         for (int j = 0; j < cands1.size(); ++j) {
           int st = sp | (cands0[i] << 6) | cands1[j];
-          if (embed_pattern[shift][st] < best_len) {
-            best_len = embed_pattern[shift][st];
+          if ((embed_pattern[shift][st] >> 2) < best_len) {
+            best_len = embed_pattern[shift][st] >> 2;
             best_st = st;
           }
         }
@@ -1136,13 +1139,15 @@ struct PuzzleSolver {
     const int shift = right - pos;
     int best_len = INF;
     int best_st = 0;
+    randomize(cands0);
+    randomize(cands1);
     if (target[level][pos] == target[level][pos - 1]) {
       for (int i = 0; i < cands0.size(); ++i) {
         for (int j = 0; j < cands0.size(); ++j) {
           if (i == j) continue;
           int st = sp | (cands0[i] << 6) | cands0[j];
-          if (embed_pattern[shift][st] < best_len) {
-            best_len = embed_pattern[shift][st];
+          if ((embed_pattern[shift][st] >> 2) < best_len) {
+            best_len = embed_pattern[shift][st] >> 2;
             best_st = st;
           }
         }
@@ -1151,8 +1156,8 @@ struct PuzzleSolver {
       for (int i = 0; i < cands0.size(); ++i) {
         for (int j = 0; j < cands1.size(); ++j) {
           int st = sp | (cands0[i] << 6) | cands1[j];
-          if (embed_pattern[shift][st] < best_len) {
-            best_len = embed_pattern[shift][st];
+          if ((embed_pattern[shift][st] >> 2) < best_len) {
+            best_len = embed_pattern[shift][st] >> 2;
             best_st = st;
           }
         }
@@ -1223,8 +1228,8 @@ struct PuzzleSolver {
             if (k == i || k == j) continue;
             int r2 = cands0[k] >> 3;
             int c2 = cands0[k] & 7;
-            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
-              best_len = pat[r0][c0][r1][c1][r2][c2];
+            if ((pat[r0][c0][r1][c1][r2][c2] >> 2) < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2] >> 2;
               best_pos = {r0, c0, r1, c1, r2, c2};
             }
           }
@@ -1241,8 +1246,8 @@ struct PuzzleSolver {
           for (int k = 0; k < cands2.size(); ++k) {
             int r2 = cands2[k] >> 3;
             int c2 = cands2[k] & 7;
-            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
-              best_len = pat[r0][c0][r1][c1][r2][c2];
+            if ((pat[r0][c0][r1][c1][r2][c2] >> 2) < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2] >> 2;
               best_pos = {r0, c0, r1, c1, r2, c2};
             }
           }
@@ -1259,8 +1264,8 @@ struct PuzzleSolver {
           for (int k = 0; k < cands1.size(); ++k) {
             int r1 = cands1[k] >> 3;
             int c1 = cands1[k] & 7;
-            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
-              best_len = pat[r0][c0][r1][c1][r2][c2];
+            if ((pat[r0][c0][r1][c1][r2][c2] >> 2) < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2] >> 2;
               best_pos = {r0, c0, r1, c1, r2, c2};
             }
           }
@@ -1277,8 +1282,8 @@ struct PuzzleSolver {
           for (int k = 0; k < cands0.size(); ++k) {
             int r0 = cands0[k] >> 3;
             int c0 = cands0[k] & 7;
-            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
-              best_len = pat[r0][c0][r1][c1][r2][c2];
+            if ((pat[r0][c0][r1][c1][r2][c2] >> 2) < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2] >> 2;
               best_pos = {r0, c0, r1, c1, r2, c2};
             }
           }
@@ -1294,8 +1299,8 @@ struct PuzzleSolver {
           for (int k = 0; k < cands2.size(); ++k) {
             int r2 = cands2[k] >> 3;
             int c2 = cands2[k] & 7;
-            if (pat[r0][c0][r1][c1][r2][c2] < best_len) {
-              best_len = pat[r0][c0][r1][c1][r2][c2];
+            if ((pat[r0][c0][r1][c1][r2][c2] >> 2) < best_len) {
+              best_len = pat[r0][c0][r1][c1][r2][c2] >> 2;
               best_pos = {r0, c0, r1, c1, r2, c2};
             }
           }
@@ -1330,6 +1335,9 @@ struct PuzzleSolver {
       }
     }
     array<int, 6> best_pos;
+    randomize(cands0);
+    randomize(cands1);
+    randomize(cands2);
     int best_len = find_best_pos_pattern_3(bottom, sr, sc, t0, t1, t2, cands0, cands1, cands2, best_pos);
     if (best_len == INF) {
       return false;
@@ -1376,6 +1384,9 @@ struct PuzzleSolver {
       }
     }
     array<int, 6> best_pos;
+    randomize(cands0);
+    randomize(cands1);
+    randomize(cands2);
     int best_len = find_best_pos_pattern_3(bottom, sr, sc, t0, t1, t2, cands0, cands1, cands2, best_pos);
     if (best_len == INF) {
       return false;
@@ -1860,7 +1871,7 @@ struct Solver {
 
   vector<vvi> generate_targets() {
     ll elapsed = get_elapsed_msec();
-    ll until = (TL - elapsed) / 4 + elapsed;
+    ll until = (TL - elapsed) * 5 / 10 + elapsed;
     unordered_set<uint64_t> visited;
     TreePlacer tree_placer;
     vector<vvi> targets;
