@@ -29,8 +29,8 @@ result_path = "#{solver_path}/00"
 envs = "environment=[{name=RANGE,value=#{range}},{name=SUBMISSION_ID,value=#{solver_path}},{name=RESULT_PATH,value=#{result_path}}]"
 system('aws', *args, envs, exception: true)
 
-# [1,2,3,4,5,6].each do |i|
-# 		result_path = sprintf("#{solver_path}/%s", i)
-# 		envs = "environment=[{name=RANGE,value=#{range}},{name=SUBMISSION_ID,value=#{solver_path}},{name=RESULT_PATH,value=#{result_path}}, {name=PATTERN,value=#{i}}]"
+# [2, 3, 4, 5].each do |i|
+# 		result_path = sprintf("#{solver_path}/%d", i)
+# 		envs = "environment=[{name=RANGE,value=#{range}},{name=SUBMISSION_ID,value=#{solver_path}},{name=RESULT_PATH,value=#{result_path}}, {name=GEN_RATIO,value=#{i}}]"
 # 		system('aws', *args, envs, exception: true)
 # end
