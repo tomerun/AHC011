@@ -1877,12 +1877,10 @@ struct Solver {
     int prev_dist = INF;
     vvi prev_target;
     for (int i = 0; ; ++i) {
-      // if (penas.size() > 100) break;
       if (get_elapsed_msec() > until) {
         break;
       }
-      for (int j = 0; j < 1000; ++j) {
-        // if (penas.size() > 100) break;
+      for (int j = 0; j < 20000; ++j) {
         if (get_elapsed_msec() > until) {
           debug("gen turn:%d %d\n", i, j);
           break;
