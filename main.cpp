@@ -1838,8 +1838,6 @@ struct Hand {
   vi moves;
 };
 
-bool operator<(const Hand& h0, const Hand& h1) { return h0.penalty < h1.penalty; };
-
 struct History {
   int prev_idx;
   vi moves;
@@ -1850,8 +1848,6 @@ constexpr int BEAM_SIZE = 500;
 constexpr int SPAWN_SIZE = 12;
 array<array<History, BEAM_SIZE>, 14> beam_history;
 array<Hand, BEAM_SIZE * SPAWN_SIZE> hands;
-array<array<int, 16>, 16> manhattan;
-
 
 struct Solver {
   Solver() {}
@@ -2144,11 +2140,6 @@ void rot_orig_tiles() {
 }
 
 int main() {
-  for (int i = 0; i < 16; ++i) {
-    for (int j = 0; j < 16; ++j) {
-      manhattan[i][j] = abs((i >> 2) - (j >> 2)) + abs((i & 3) - (j & 3));
-    }
-  }
   scanf("%d %d", &N, &T);
   for (int i = 0; i < N; ++i) {
     char row[11];
