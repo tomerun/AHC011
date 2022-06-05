@@ -38,10 +38,10 @@ namespace {
 
 #ifdef LOCAL
 constexpr double CLOCK_PER_SEC = 3.126448e9;
-constexpr ll TL = 1000;
+constexpr ll TL = 2800;
 #else
 constexpr double CLOCK_PER_SEC = 2.5e9;
-constexpr ll TL = 2000;
+constexpr ll TL = 2800;
 #endif
 
 inline ll get_time() {
@@ -1836,7 +1836,7 @@ struct History {
 
 array<array<array<uint64_t, 16>, 10>, 10> cell_hash;
 constexpr int BEAM_SIZE = 1000;
-constexpr int SPAWN_SIZE = 20;
+constexpr int SPAWN_SIZE = 3;
 array<array<History, BEAM_SIZE>, 14> beam_history;
 array<Hand, BEAM_SIZE * SPAWN_SIZE> hands;
 array<array<int, 16>, 16> manhattan;
@@ -1920,26 +1920,25 @@ struct Solver {
     }
   }
 
-  Result solve() {
+  vi solve_beam(vector<vvi>& targets) {
     vvi initial_tiles;
     for (int i = 0; i < N; ++i) {
       initial_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
     }
-    START_TIMER(0);
-    vector<vvi> targets = generate_targets();
-    assert(targets.size() <= BEAM_SIZE);
-    STOP_TIMER(0);
-
     PuzzleSolver puzzle_solver(initial_tiles, targets[0]);
     vector<State> cur_states;
     for (int i = 0; i < targets.size(); ++i) {
       cur_states.push_back({initial_tiles, i, 0, initial_er, initial_ec});
     }
     for (int turn = 0; turn < (N - 3) * 2; ++turn) {
+      if (get_elapsed_msec() > TL) {
+        debugStr("timeout\n");
+        return vi(T, 0);
+      }
       debug("turn:%d beam_size:%lu\n", turn, cur_states.size());
       int level = turn / 2;
       int hi = 0;
-      int spawn_cnt = max((int)((BEAM_SIZE + cur_states.size() - 1) / cur_states.size()), SPAWN_SIZE);
+      int spawn_cnt = SPAWN_SIZE; // max((int)((BEAM_SIZE + cur_states.size() - 1) / cur_states.size()), SPAWN_SIZE);
       for (int i = 0; i < cur_states.size(); ++i) {
         const State& cur_state = cur_states[i];
         // debug("i:%d er:%d ec:%d, ans_len:%d\n", i, cur_state.er, cur_state.ec, cur_state.ans_len);
@@ -1981,14 +1980,9 @@ struct Solver {
         // debug("len:%d, state_idx:%d\n", hand.penalty, hand.state_idx);
         const State& prev_state = cur_states[hand.state_idx];
         vvi tiles = prev_state.tiles;
-        // debugStr("target\n");
-        // print_tiles(targets[prev_state.target_idx]);
-        // debugStr("current\n");
-        // print_tiles(tiles);
         int er = prev_state.er;
         int ec = prev_state.ec;
         for (int dir : hand.moves) {
-          // debug("%d %d\n", er, ec);
           if (level & 1) {
             dir ^= 1;
           }
@@ -1998,10 +1992,6 @@ struct Solver {
           er = nr;
           ec = nc;
         }
-        // debug("%d %d\n", er, ec);
-        // debugStr("last\n");
-        // print_tiles(tiles);
-        // debugln();
         beam_history[turn][next_states.size()] = {hand.state_idx, hand.moves};
         next_states.push_back({tiles, prev_state.target_idx, hand.penalty, er, ec});
       }
@@ -2024,6 +2014,11 @@ struct Solver {
         }
       }
     }
+    if (puzzle_solver.is_flipped) {
+      for (vvi& target : targets) {
+        flip_tiles(target);
+      }
+    }
     vi best_ans(T, 0);
     vi sis(cur_states.size());
     iota(sis.begin(), sis.end(), 0);
@@ -2034,12 +2029,6 @@ struct Solver {
         break;
       }
       puzzle_solver.load(N - 3, cur_state.tiles, targets[cur_state.target_idx], cur_state.er, cur_state.ec);
-      // debugln();
-      // debugStr("[target]\n");
-      // print_tiles(targets[cur_state.target_idx]);
-      // debugStr("[tiles]\n");
-      // print_tiles(cur_state.tiles);
-      // debug("%d %d\n", cur_state.er, cur_state.ec);
       bool success = puzzle_solver.solve_whole(best_ans.size() - cur_state.ans_len);
       if (success && puzzle_solver.ans.size() + cur_state.ans_len < best_ans.size()) {
         best_ans.clear();
@@ -2059,10 +2048,36 @@ struct Solver {
         debug("best_ans:%lu\n", best_ans.size());
       }
     }
-
-    return {best_ans, N * N - 1};
+    return best_ans;
   }
 
+  Result solve() {
+    START_TIMER(0);
+    vector<vvi> targets = generate_targets();
+    assert(targets.size() <= BEAM_SIZE);
+    STOP_TIMER(0);
+
+
+
+    vi best_ans(T, 0);
+    ll before_time = get_elapsed_msec();
+    ll worst_time = 0;
+    for (int turn = 0; ; ++turn) {
+      if (get_elapsed_msec() + worst_time > TL) {
+        debug("worst_time:%lld\n", worst_time);
+        break;
+      }
+      vi ans = solve_beam(targets);
+      debug("turn:%d len:%lu\n", turn, ans.size());
+      if (ans.size() < best_ans.size()) {
+        swap(ans, best_ans);
+      }
+      ll after_time = get_elapsed_msec();
+      worst_time = max(worst_time, after_time - before_time);
+      before_time = after_time;
+    }
+    return {best_ans, N * N - 1};
+  }
 };
 
 void rot_orig_tiles() {
@@ -2149,5 +2164,6 @@ int main() {
   debug("verify score=%d\n", verify_score);
   debug("score=%d\n", res.score());
   assert(res.score() == verify_score);
+  debug("elapsed:%lld\n", get_elapsed_msec());
 #endif
 }
