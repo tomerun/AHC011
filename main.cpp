@@ -1058,6 +1058,7 @@ struct PuzzleSolver {
     if (top > pos) return false;
     int sr = er - top;
     int sc = ec - level;
+    if (sr >= EMBED_SIZE || sc >= EMBED_SIZE) return false;
     // debug("level:%d top:%d sr:%d sc:%d\n", level, top, sr, sc);
     int sp = (sr << 15) | (sc << 12);
     vi cands0;
@@ -1123,6 +1124,7 @@ struct PuzzleSolver {
     if (ec <= right - EMBED_SIZE) return false;
     int sr = right - ec;
     int sc = er - level;
+    if (sr >= EMBED_SIZE || sc >= EMBED_SIZE) return false;
     int sp = (sr << 15) | (sc << 12);
     // debug("level:%d right:%d sr:%d sc:%d\n", level, right, sr, sc);
     vi cands0;
