@@ -208,6 +208,7 @@ constexpr array<char, 4> DIR_CHARS = {'L', 'U', 'R', 'D'};
 
 int N, T;
 array<array<int, 12>, 12> orig_tiles;
+int initial_er, initial_ec;
 
 inline bool in_grid(int p) {
   return 0 <= p && p < N;
@@ -471,6 +472,21 @@ void precalc_pattern_3() {
     pat[shift - 1 + 2][1][shift][0][shift + 1][0][shift + 2][0] = 0;
     pat[shift - 1 + 3][1][shift][0][shift + 1][0][shift + 2][0] = 0;
     pat[shift - 1 + 0][0][shift][0][shift + 1][0][shift + 2][0] = 0;
+  }
+}
+
+inline void flip_tile(int& t) {
+  t = ((t & 5) << 1) | ((t >> 1) & 5);
+}
+
+void flip_tiles(vvi& tiles) {
+  for (int i = 1; i < N; ++i) {
+    for (int j = 0; j < i; ++j) {
+      swap(tiles[i][j], tiles[j][i]);
+      flip_tile(tiles[i][j]);
+      flip_tile(tiles[j][i]);
+    }
+    flip_tile(tiles[i][i]);
   }
 }
 
@@ -820,32 +836,6 @@ END_BFS:
   }
 };
 
-struct State {
-  vvi tiles;
-  int penalty;
-  int er, ec;
-  int back_move;
-  uint64_t hash;
-};
-
-struct SingleMove {
-  int penalty;
-  int dir;
-  int state_idx;
-};
-
-bool operator<(const SingleMove& m0, const SingleMove& m1) { return m0.penalty < m1.penalty; };
-
-struct History {
-  int prev_idx;
-  int dir;
-};
-
-array<array<array<uint64_t, 16>, 10>, 10> cell_hash;
-constexpr int BEAM_SIZE = 100;
-array<array<History, BEAM_SIZE>, 2000> beam_history;
-array<array<int, 16>, 16> manhattan;
-
 struct PuzzleSolver {
   // rule base + exhaustive search for final 3x3 area
   vvi tiles;
@@ -872,6 +862,16 @@ struct PuzzleSolver {
         }
       }
     }
+  }
+
+  void load(int level, const vvi& tiles_, const vvi& target_, int er_, int ec_) {
+    for (int i = level; i < N; ++i) {
+      copy(tiles_.begin() + i, tiles_.end(), tiles.begin() + i);
+      copy(target_.begin() + i, target_.end(), target.begin() + i);
+    }
+    er = er_;
+    ec = ec_;
+    ans.clear();
   }
 
   void convey(const int level, const int r, const int c, const int t) {
@@ -1397,7 +1397,7 @@ struct PuzzleSolver {
     return true;
   }
 
-  void solve_cw(int level) {
+  void solve_up(int level) {
     for (int i = N - 1; i >= level + 2; --i) {
       if (tiles[i][level] == target[i][level]) {
         protect[i][level] = true;
@@ -1416,7 +1416,7 @@ struct PuzzleSolver {
           continue;
         }
       }
-      if (i > level + 2 && (rnd.nextUInt() & 7)) {
+      if (i > level + 2 && (rnd.nextUInt() & 3)) {
         bool found_pattern = solve_pattern_up(level, i - 1);
         if (found_pattern) {
           assert(tiles[i][level] == target[i][level]);
@@ -1481,7 +1481,9 @@ struct PuzzleSolver {
     }
     protect[level + 1][level] = true;
     protect[level][level] = true;
+  }
 
+  void solve_right(int level) {
     for (int i = level + 1; i < N - 2; ++i) {
       if (i != N - 4 && (rnd.nextUInt() & 3)) {
         bool found_pattern = solve_pattern_3_right(level, i + 2);
@@ -1496,7 +1498,7 @@ struct PuzzleSolver {
           continue;
         }
       }
-      if (i < N - 3 && (rnd.nextUInt() & 7)) {
+      if (i < N - 3 && (rnd.nextUInt() & 3)) {
         bool found_pattern = solve_pattern_right(level, i + 1);
         if (found_pattern) {
           assert(tiles[level][i] == target[level][i]);
@@ -1649,12 +1651,14 @@ struct PuzzleSolver {
 FOUND:
     vi path;
     uint64_t s = finish_state;
+    // debugStr("backward\n");
     while (s != initial_state) {
       for (int i = 0; i < 3 * 3; ++i) {
         if (((s >> (i * 4)) & 0xF) == 0) {
           int r = i / 3;
           int c = i % 3;
           int dir = visited_states[s];
+          // debug("%d %d %d\n", r, c, dir);
           path.push_back(dir);
           int nr = r - DR[dir];
           int nc = c - DC[dir];
@@ -1669,6 +1673,7 @@ FOUND:
       ans.push_back(convert_dir(*itr));
     }
 
+    // debugStr("forward\n");
     s = finish_state;
     while (s != target_state) {
       for (int i = 0; i < 3 * 3; ++i) {
@@ -1676,6 +1681,7 @@ FOUND:
           int r = i / 3;
           int c = i % 3;
           int dir = goal_states[s] ^ 2;
+          // debug("%d %d %d\n", r, c, dir);
           ans.push_back(convert_dir(dir));
           int nr = r + DR[dir];
           int nc = c + DC[dir];
@@ -1698,10 +1704,6 @@ FOUND:
     }
   }
 
-  inline void flip_tile(int& t) {
-    t = ((t & 5) << 1) | ((t >> 1) & 5);
-  }
-
   void flip() {
     for (int i = 1; i < N; ++i) {
       for (int j = 0; j < i; ++j) {
@@ -1720,13 +1722,10 @@ FOUND:
   }
 
   vi solve(bool& success, const vi& best_len, vi& cur_lens) {
-    // debugStr("target\n");
-    // print_tiles(target);
-    // debugStr("tiles\n");
-    // print_tiles(tiles);
     START_TIMER(1);
     for (int level = 0; level < N - 3; ++level) {
-      solve_cw(level);
+      solve_up(level);
+      solve_right(level);
       // debug("level:%d len:%lu\n", level, ans.size());
       if (ans.size() > best_len[level] + 20) {
         success = false;
@@ -1815,6 +1814,34 @@ int calc_tiles_dist(const vvi target_tiles) {
   return sum;
 }
 
+struct State {
+  vvi tiles;
+  int target_idx;
+  int ans_len;
+  int er, ec;
+};
+
+struct Hand {
+  int penalty;
+  int state_idx;
+  vi moves;
+};
+
+bool operator<(const Hand& h0, const Hand& h1) { return h0.penalty < h1.penalty; };
+
+struct History {
+  int prev_idx;
+  vi moves;
+};
+
+array<array<array<uint64_t, 16>, 10>, 10> cell_hash;
+constexpr int BEAM_SIZE = 1000;
+constexpr int SPAWN_SIZE = 20;
+array<array<History, BEAM_SIZE>, 14> beam_history;
+array<Hand, BEAM_SIZE * SPAWN_SIZE> hands;
+array<array<int, 16>, 16> manhattan;
+
+
 struct Solver {
   Solver() {}
 
@@ -1894,71 +1921,143 @@ struct Solver {
   }
 
   Result solve() {
-    vi best_ans(T, 0);
-    vi best_lens(N - 2, INF);
-    vi cur_lens;
-    // TreePlacer tree_placer;
     vvi initial_tiles;
     for (int i = 0; i < N; ++i) {
       initial_tiles.push_back(vi(orig_tiles[i].begin(), orig_tiles[i].begin() + N));
     }
     START_TIMER(0);
     vector<vvi> targets = generate_targets();
+    assert(targets.size() <= BEAM_SIZE);
     STOP_TIMER(0);
-    int best_target_idx = 0;
-    int turn = 0;
-    uint64_t worst_time = 0;
-    uint64_t before_time = get_elapsed_msec();
-    while (true) {
-      if (get_elapsed_msec() + worst_time > TL * 9 / 10) {
-        debug("total_first_turn:%d\n", turn);
-        break;
-      }
-      vvi target_tiles = targets[turn % targets.size()];
-      bool success = false;
-      PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
-      cur_lens.clear();
-      vi ans = puzzle_solver.solve(success, best_lens, cur_lens);
-      if (success) {
-        remove_redundant_moves(ans);
-        if (ans.size() < best_ans.size()) {
-          swap(ans, best_ans);
-          swap(best_lens, cur_lens);
-          best_target_idx = turn % targets.size();
-          debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
-        }
-      }
-      turn++;
-      uint64_t after_time = get_elapsed_msec();
-      worst_time = max(worst_time, after_time - before_time);
-      before_time = after_time;
-    }
 
-    turn = 0;
-    worst_time = 0;
-    before_time = get_elapsed_msec();
-    vvi target_tiles = targets[best_target_idx];
-    while (true) {
-      if (get_elapsed_msec() + worst_time > TL) {
-        debug("total_second_turn:%d\n", turn);
-        break;
-      }
-      bool success = false;
-      PuzzleSolver puzzle_solver(initial_tiles, target_tiles);
-      cur_lens.clear();
-      vi ans = puzzle_solver.solve(success, best_lens, cur_lens);
-      if (success) {
-        remove_redundant_moves(ans);
-        if (ans.size() < best_ans.size()) {
-          swap(ans, best_ans);
-          swap(best_lens, cur_lens);
-          debug("best_ans:%lu at turn %d\n", best_ans.size(), turn);
+    PuzzleSolver puzzle_solver(initial_tiles, targets[0]);
+    vector<State> cur_states;
+    for (int i = 0; i < targets.size(); ++i) {
+      cur_states.push_back({initial_tiles, i, 0, initial_er, initial_ec});
+    }
+    for (int turn = 0; turn < (N - 3) * 2; ++turn) {
+      debug("turn:%d beam_size:%lu\n", turn, cur_states.size());
+      int level = turn / 2;
+      int hi = 0;
+      int spawn_cnt = max((int)((BEAM_SIZE + cur_states.size() - 1) / cur_states.size()), SPAWN_SIZE);
+      for (int i = 0; i < cur_states.size(); ++i) {
+        const State& cur_state = cur_states[i];
+        // debug("i:%d er:%d ec:%d, ans_len:%d\n", i, cur_state.er, cur_state.ec, cur_state.ans_len);
+        vector<uint64_t> used_hash;
+        for (int j = 0; j < spawn_cnt; ++j) {
+          puzzle_solver.load(level, cur_state.tiles, targets[cur_state.target_idx], cur_state.er, cur_state.ec);
+          if (turn % 2 == 0) {
+            for (int k = level; k < N; ++k) {
+              puzzle_solver.protect[k][level] = false;
+            }
+            puzzle_solver.solve_up(level);
+          } else {
+            for (int k = level + 1; k < N; ++k) {
+              puzzle_solver.protect[level][k] = false;
+            }
+            puzzle_solver.solve_right(level);
+          }
+          uint64_t hash = 0;
+          for (int r = level; r < N; ++r) {
+            for (int c = level; c < N; ++c) {
+              hash ^= cell_hash[r][c][puzzle_solver.tiles[r][c]];
+            }
+          }
+          if (find(used_hash.begin(), used_hash.end(), hash) == used_hash.end()) {
+            used_hash.push_back(hash);
+            hands[hi++] = {cur_state.ans_len + (int)puzzle_solver.ans.size() ,i, puzzle_solver.ans};
+          }
         }
       }
-      turn++;
-      uint64_t after_time = get_elapsed_msec();
-      worst_time = max(worst_time, after_time - before_time);
-      before_time = after_time;
+      vector<State> next_states;
+      vi his(hi);
+      iota(his.begin(), his.end(), 0);
+      if (hi > BEAM_SIZE) {
+        nth_element(his.begin(), his.begin() + BEAM_SIZE, his.end(), [](int i0, int i1){ return hands[i0].penalty < hands[i1].penalty; });
+      }
+      debug("min_len:%d\n", hands[*min_element(his.begin(), his.end(), [](int i0, int i1){return hands[i0].penalty < hands[i1].penalty;})].penalty);
+      for (int i = 0; i < min(BEAM_SIZE, hi); ++i) {
+        const Hand& hand = hands[his[i]];
+        // debug("len:%d, state_idx:%d\n", hand.penalty, hand.state_idx);
+        const State& prev_state = cur_states[hand.state_idx];
+        vvi tiles = prev_state.tiles;
+        // debugStr("target\n");
+        // print_tiles(targets[prev_state.target_idx]);
+        // debugStr("current\n");
+        // print_tiles(tiles);
+        int er = prev_state.er;
+        int ec = prev_state.ec;
+        for (int dir : hand.moves) {
+          // debug("%d %d\n", er, ec);
+          if (level & 1) {
+            dir ^= 1;
+          }
+          int nr = er + DR[dir];
+          int nc = ec + DC[dir];
+          swap(tiles[er][ec], tiles[nr][nc]);
+          er = nr;
+          ec = nc;
+        }
+        // debug("%d %d\n", er, ec);
+        // debugStr("last\n");
+        // print_tiles(tiles);
+        // debugln();
+        beam_history[turn][next_states.size()] = {hand.state_idx, hand.moves};
+        next_states.push_back({tiles, prev_state.target_idx, hand.penalty, er, ec});
+      }
+      swap(cur_states, next_states);
+      if (turn & 1) {
+        puzzle_solver.is_flipped ^= true;
+        for (vvi& target : targets) {
+          flip_tiles(target);
+        }
+        for (State& s : cur_states) {
+          flip_tiles(s.tiles);
+          swap(s.er, s.ec);
+        }
+        for (int i = 0; i < N; ++i) {
+          puzzle_solver.protect[level][i] = true;
+        }
+      } else {
+        for (int i = 0; i < N; ++i) {
+          puzzle_solver.protect[i][level] = true;
+        }
+      }
+    }
+    vi best_ans(T, 0);
+    vi sis(cur_states.size());
+    iota(sis.begin(), sis.end(), 0);
+    sort(sis.begin(), sis.end(), [&cur_states](int i0, int i1){ return cur_states[i0].ans_len < cur_states[i1].ans_len; });
+    for (int si : sis) {
+      const State& cur_state = cur_states[si];
+      if (cur_state.ans_len >= best_ans.size()) {
+        break;
+      }
+      puzzle_solver.load(N - 3, cur_state.tiles, targets[cur_state.target_idx], cur_state.er, cur_state.ec);
+      // debugln();
+      // debugStr("[target]\n");
+      // print_tiles(targets[cur_state.target_idx]);
+      // debugStr("[tiles]\n");
+      // print_tiles(cur_state.tiles);
+      // debug("%d %d\n", cur_state.er, cur_state.ec);
+      bool success = puzzle_solver.solve_whole(best_ans.size() - cur_state.ans_len);
+      if (success && puzzle_solver.ans.size() + cur_state.ans_len < best_ans.size()) {
+        best_ans.clear();
+        for (auto itr = puzzle_solver.ans.rbegin(); itr != puzzle_solver.ans.rend(); ++itr) {
+          best_ans.push_back(*itr);
+        }
+        int time = (N - 3) * 2 - 1;
+        while (time >= 0) {
+          const History& history = beam_history[time][si];
+          for (auto itr = history.moves.rbegin(); itr != history.moves.rend(); ++itr) {
+            best_ans.push_back(*itr);
+          }
+          si = history.prev_idx;
+          --time;
+        }
+        reverse(best_ans.begin(), best_ans.end());
+        debug("best_ans:%lu\n", best_ans.size());
+      }
     }
 
     return {best_ans, N * N - 1};
@@ -1978,6 +2077,8 @@ void rot_orig_tiles() {
   for (int i = 0; i < N; ++i) {
     copy(orig_tiles_tmp[i].begin(), orig_tiles_tmp[i].end(), orig_tiles[i].begin());
   }
+  swap(initial_er, initial_ec);
+  initial_ec = N - 1 - initial_ec;
 }
 
 int main() {
@@ -1987,8 +2088,6 @@ int main() {
     }
   }
   scanf("%d %d", &N, &T);
-  int er = 0;
-  int ec = 0;
   for (int i = 0; i < N; ++i) {
     char row[11];
     scanf("%s", row);
@@ -2000,15 +2099,15 @@ int main() {
         cell_hash[i][j][k] = ((uint64_t)rnd.nextUInt() << 32) | rnd.nextUInt();
       }
       if (t == 0) {
-        er = i;
-        ec = j;
+        initial_er = i;
+        initial_ec = j;
       }
     }
   }
-  int dist_tl = er + ec;
-  int dist_tr = er + (N - 1 - ec);
-  int dist_bl = (N - 1 - er) + ec;
-  int dist_br = (N - 1 - er) + (N - 1 - ec);
+  int dist_tl = initial_er + initial_ec;
+  int dist_tr = initial_er + (N - 1 - initial_ec);
+  int dist_bl = (N - 1 - initial_er) + initial_ec;
+  int dist_br = (N - 1 - initial_er) + (N - 1 - initial_ec);
   int dist_min = min({dist_tl, dist_tr, dist_bl, dist_br});
   int rot;
   if (dist_bl == dist_min) {
