@@ -482,6 +482,24 @@ bool accept(int diff, double cooler) {
   return rnd.nextDouble() < exp(v);
 }
 
+bool is_tree(const vvi& tiles) {
+  UnionFind uf(N * N);
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
+      int t = tiles[i][j];
+      for (int k = 0; k < 4; ++k) {
+        if ((t & (1 << k)) == 0) continue;
+        int nr = i + DR[k];
+        int nc = j + DC[k];
+        if (!in_grid(nr) || !in_grid(nc)) return false;
+        if ((tiles[nr][nc] & (1 << (k ^ 2))) == 0) return false;
+        uf.unite(i * N + j, nr * N + nc);
+      }
+    }
+  }
+  return uf.size(tiles[0][0] == 0 ? 1 : 0) == N * N - 1;
+}
+
 int verify(const vector<int>& moves) {
   int cr = -1;
   int cc = -1;
@@ -507,6 +525,9 @@ int verify(const vector<int>& moves) {
     cc = nc;
     if (i > 0 && (moves[i - 1] ^ 2) == moves[i]) {
       debug("redundant move at %d\n", i);
+    }
+    if (i < moves.size() - 1 && is_tree(tiles)) {
+      debug("is_tree %d\n", i);
     }
   }
   vector<vector<bool>> visited(N, vector<bool>(N, false));
@@ -1382,7 +1403,7 @@ struct PuzzleSolver {
         protect[i][level] = true;
         continue;
       }
-      if (i != level + 3 && (rnd.nextUInt() & 7)) {
+      if (i != level + 3 && (rnd.nextUInt() & 3)) {
         bool found_pattern = solve_pattern_3_up(level, i - 2);
         if (found_pattern) {
           assert(tiles[i][level] == target[i][level]);
@@ -1462,7 +1483,7 @@ struct PuzzleSolver {
     protect[level][level] = true;
 
     for (int i = level + 1; i < N - 2; ++i) {
-      if (i != N - 4 && (rnd.nextUInt() & 7)) {
+      if (i != N - 4 && (rnd.nextUInt() & 3)) {
         bool found_pattern = solve_pattern_3_right(level, i + 2);
         if (found_pattern) {
           assert(tiles[level][i] == target[level][i]);
@@ -1812,7 +1833,7 @@ struct Solver {
 
   vector<vvi> generate_targets() {
     ll elapsed = get_elapsed_msec();
-    ll until = (TL - elapsed) / 3 + elapsed;
+    ll until = (TL - elapsed) / 4 + elapsed;
     unordered_set<uint64_t> visited;
     TreePlacer tree_placer;
     vector<vvi> targets;
